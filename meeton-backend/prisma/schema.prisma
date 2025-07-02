@@ -1,0 +1,401 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "../docs/database-erd.svg"
+}
+
+datasource db {
+  provider = "cockroachdb"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// User Management Models
+// ============================================================================
+
+model User {
+  id                    String   @id @default(cuid())
+  name                  String?
+  email                 String?  @unique
+  emailVerified         DateTime?
+  image                 String?
+  username              String   @unique
+  bio                   String?
+  dateOfBirth           DateTime?
+  gender                String?
+  location              String?
+  interests             String[] // Array of interest strings
+  language              String?  @default("English")
+  timezone              String?  @default("America/Chicago")
+  lastActive            DateTime @default(now())
+  onboardingCompleted   Boolean  @default(false)
+  
+  // Authentication fields
+  passwordHash          String?
+  emailVerificationToken String?
+  resetPasswordToken     String?
+  resetPasswordExpires   DateTime?
+  
+  // Social login fields
+  googleId              String?
+  appleId               String?
+  
+  // Privacy settings
+  profileVisibility     ProfileVisibility @default(PUBLIC)
+  allowFriendRequests   Boolean @default(true)
+  showOnlineStatus      Boolean @default(true)
+  
+  // Notification preferences
+  pushNotifications     Boolean @default(true)
+  emailNotifications    Boolean @default(true)
+  smsNotifications      Boolean @default(false)
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relationships
+  hostedEvents          Event[]       @relation("EventHost")
+  attendees             Attendee[]
+  friendRequestsSent    FriendRequest[] @relation("FriendRequestSender")
+  friendRequestsReceived FriendRequest[] @relation("FriendRequestReceiver")
+  notifications         Notification[]
+  comments              Comment[]
+  commentReactions      CommentReaction[]
+  eventPhotos           EventPhoto[]
+  refreshTokens         RefreshToken[]
+
+  @@map("users")
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  FRIENDS_ONLY
+  PRIVATE
+}
+
+model RefreshToken {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// ============================================================================
+// Event Management Models
+// ============================================================================
+
+model Event {
+  id                String   @id @default(cuid())
+  name              String
+  date              DateTime
+  time              String   // Store as string for flexibility (e.g., "7:00 PM", "All Day")
+  location          String
+  lat               Float?
+  lng               Float?
+  image             String?
+  description       String?
+  duration          Int      // Duration in minutes
+  capacity          Int?     // Max number of attendees
+  rsvpDeadline      DateTime?
+  
+  // Event customization
+  headerType        String?  // "color" or "image"
+  headerColor       String?  // Hex color code
+  headerImageUrl    String?
+  
+  // Event status
+  isArchived        Boolean  @default(false)
+  archivedAt        DateTime?
+  cancelledAt       DateTime?
+  
+  // Event categorization
+  category          String?
+  tags              String[] // Array of tag strings
+  
+  // Privacy and sharing
+  privacyLevel      PrivacyLevel @default(PUBLIC)
+  viewCount         Int      @default(0)
+  shareCount        Int      @default(0)
+  
+  // External integration
+  ticketPrice       Float?   // Price in cents
+  externalUrl       String?  // External ticket/booking URL
+  
+  // Weather data (stored as JSON)
+  weather           Json?
+  
+  // Location details (stored as JSON)
+  locationDetails   Json?
+  
+  // Recurring events
+  parentEventId     String?
+  parentEvent       Event?   @relation("RecurringEvents", fields: [parentEventId], references: [id])
+  recurringEvents   Event[]  @relation("RecurringEvents")
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relationships
+  hostId            String
+  host              User       @relation("EventHost", fields: [hostId], references: [id])
+  attendees         Attendee[]
+  photos            EventPhoto[]
+  comments          Comment[]
+
+  @@map("events")
+}
+
+enum PrivacyLevel {
+  PUBLIC
+  FRIENDS_ONLY
+  PRIVATE
+}
+
+model Attendee {
+  id                  String   @id @default(cuid())
+  rsvp                RSVP     @default(PENDING)
+  responseTime        DateTime?
+  inviteMethod        String?  // "link", "email", "sms", "in_app"
+  
+  // Check-in functionality
+  checkedIn           Boolean  @default(false)
+  checkinTime         DateTime?
+  
+  // Invite tracking
+  inviteOpenedAt      DateTime?
+  inviteOpenCount     Int      @default(0)
+  lastNotifiedAt      DateTime?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relationships
+  userId              String
+  eventId             String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event               Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@map("attendees")
+}
+
+enum RSVP {
+  YES
+  MAYBE
+  NO
+  PENDING
+}
+
+// ============================================================================
+// Social Features Models
+// ============================================================================
+
+model FriendRequest {
+  id              String   @id @default(cuid())
+  status          FriendRequestStatus @default(PENDING)
+  responseTime    DateTime?
+  seenAt          DateTime?
+  declineReason   String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  senderId        String
+  receiverId      String
+  sender          User     @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver        User     @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@map("friend_requests")
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+// ============================================================================
+// Communication Models
+// ============================================================================
+
+model Comment {
+  id              String   @id @default(cuid())
+  text            String
+  sentiment       Float?   // Sentiment analysis score (-1.0 to 1.0)
+  attachments     String[] // Array of attachment URLs
+  editHistory     Json?    // Store edit history as JSON
+  mentions        String[] // Array of mentioned user IDs
+  reactionCounts  Json?    // Store reaction counts as JSON
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  userId          String
+  eventId         String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reactions       CommentReaction[]
+
+  @@map("comments")
+}
+
+model CommentReaction {
+  id            String   @id @default(cuid())
+  reactionType  String   // "like", "love", "laugh", "wow", "sad", "angry"
+  createdAt     DateTime @default(now())
+
+  // Relationships
+  commentId     String
+  userId        String
+  comment       Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId, reactionType])
+  @@map("comment_reactions")
+}
+
+// ============================================================================
+// Media Models
+// ============================================================================
+
+model EventPhoto {
+  id          String   @id @default(cuid())
+  imageUrl    String
+  caption     String?
+  uploadedAt  DateTime @default(now())
+  storageKey  String?  // For cloud storage reference
+  likeCount   Int      @default(0)
+
+  // Relationships
+  eventId     String
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("event_photos")
+}
+
+// ============================================================================
+// Notification Models
+// ============================================================================
+
+model Notification {
+  id              String   @id @default(cuid())
+  message         String
+  link            String?
+  sourceType      NotificationSourceType
+  isRead          Boolean  @default(false)
+  readAt          DateTime?
+  deliveryStatus  String?  // "sent", "delivered", "failed"
+  clickedAt       DateTime?
+  dismissedAt     DateTime?
+  priority        Int      @default(1) // 1 = low, 2 = medium, 3 = high
+
+  createdAt       DateTime @default(now())
+
+  // Relationships (optional foreign keys for context)
+  attendeeId      String?
+  friendRequestId String?
+  targetUserId    String
+  targetUser      User     @relation(fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+enum NotificationSourceType {
+  ATTENDEE
+  FRIEND_REQUEST
+  EVENT_UPDATE
+  EVENT_CANCELLED
+  EVENT_REMINDER
+  COMMENT
+  MENTION
+  SYSTEM
+  PRIVATE_INVITATION
+}
+
+// ============================================================================
+// Analytics Models
+// ============================================================================
+
+model EventAnalytics {
+  id              String   @id @default(cuid())
+  eventId         String   @unique
+  viewCount       Int      @default(0)
+  shareCount      Int      @default(0)
+  inviteCount     Int      @default(0)
+  rsvpYesCount    Int      @default(0)
+  rsvpMaybeCount  Int      @default(0)
+  rsvpNoCount     Int      @default(0)
+  checkinCount    Int      @default(0)
+  commentCount    Int      @default(0)
+  photoCount      Int      @default(0)
+  
+  lastUpdated     DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@map("event_analytics")
+}
+
+model UserAnalytics {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  eventsHosted        Int      @default(0)
+  eventsAttended      Int      @default(0)
+  friendsCount        Int      @default(0)
+  totalRSVPs          Int      @default(0)
+  averageEventRating  Float?
+  
+  lastUpdated         DateTime @updatedAt
+  createdAt           DateTime @default(now())
+
+  @@map("user_analytics")
+}
+
+// ============================================================================
+// System Models
+// ============================================================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String   // "CREATE", "UPDATE", "DELETE", "LOGIN", etc.
+  resource    String   // "USER", "EVENT", "ATTENDEE", etc.
+  resourceId  String?
+  details     Json?    // Additional details as JSON
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model SystemSettings {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("system_settings")
+}

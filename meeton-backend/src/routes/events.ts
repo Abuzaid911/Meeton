@@ -1,0 +1,113 @@
+import { Router } from 'express';
+import { eventController } from '../controllers/eventController';
+import { authenticate } from '../middleware/auth';
+import { validateBody } from '../middleware/validation';
+import { eventCreationLimiter, apiLimiter } from '../middleware/rateLimit';
+import { createEventSchema } from '../utils/validation';
+
+const router = Router();
+
+/**
+ * Event Routes - /api/events
+ * All routes are properly authenticated and rate-limited
+ */
+
+// ============================================================================
+// Public Event Routes (with basic rate limiting)
+// ============================================================================
+
+/**
+ * Get events with filtering and pagination
+ * GET /api/events
+ * Query params: page, limit, category, privacy, search, hostId, attendeeId, startDate, endDate, sortBy, sortOrder
+ */
+router.get('/', 
+  apiLimiter, 
+  eventController.getEvents
+);
+
+/**
+ * Get event by ID
+ * GET /api/events/:id
+ */
+router.get('/:id', 
+  apiLimiter, 
+  eventController.getEventById
+);
+
+/**
+ * Get event attendees
+ * GET /api/events/:id/attendees
+ * Query params: rsvp (filter by RSVP status)
+ */
+router.get('/:id/attendees', 
+  apiLimiter, 
+  eventController.getEventAttendees
+);
+
+/**
+ * Get user's events (hosted and attending)
+ * GET /api/events/user/:userId
+ */
+router.get('/user/:userId', 
+  apiLimiter, 
+  eventController.getUserEvents
+);
+
+// ============================================================================
+// Authenticated Event Routes
+// ============================================================================
+
+/**
+ * Create a new event
+ * POST /api/events
+ */
+router.post('/', 
+  eventCreationLimiter, // Special rate limiting for event creation
+  authenticate,
+  validateBody(createEventSchema),
+  eventController.createEvent
+);
+
+/**
+ * Update an event
+ * PUT /api/events/:id
+ */
+router.put('/:id', 
+  apiLimiter,
+  authenticate,
+  eventController.updateEvent
+);
+
+/**
+ * Delete/Archive an event
+ * DELETE /api/events/:id
+ */
+router.delete('/:id', 
+  apiLimiter,
+  authenticate,
+  eventController.deleteEvent
+);
+
+/**
+ * RSVP to an event
+ * POST /api/events/:id/rsvp
+ * Body: { rsvp: "YES" | "NO" | "MAYBE" | "PENDING" }
+ */
+router.post('/:id/rsvp', 
+  apiLimiter,
+  authenticate,
+  eventController.rsvpToEvent
+);
+
+/**
+ * Remove attendee from event
+ * DELETE /api/events/:id/attendees/:userId
+ */
+router.delete('/:id/attendees/:userId', 
+  apiLimiter,
+  authenticate,
+  eventController.removeAttendee
+);
+
+export default router; 

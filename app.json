@@ -1,29 +1,61 @@
 {
   "expo": {
-    "name": "MeetOnTemp",
-    "slug": "MeetOnTemp",
+    "name": "MeetOn",
+    "slug": "meeton",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.meeton.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app needs access to your camera to take photos for your events.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select images for your events.",
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to help you set event locations and show nearby events.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "google",
+            "CFBundleURLSchemes": ["com.googleusercontent.apps.38702126641-cs5p51cu1m4elmp9li0ptv2ot77k6pb9"]
+          },
+          {
+            "CFBundleURLName": "meeton",
+            "CFBundleURLSchemes": ["meeton"]
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "scheme": "meeton",
+    "plugins": [
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.38702126641-cs5p51cu1m4elmp9li0ptv2ot77k6pb9"
+        }
+      ]
+    ]
   }
 }
