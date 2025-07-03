@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 import { User } from '../types';
-import APIService from '../services/api';
+import APIService, { sessionEvents, SESSION_EVENTS } from '../services/api';
 import GoogleAuthService from '../services/googleAuth';
 
 interface AuthContextType {
@@ -51,7 +52,61 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Check if user is already logged in on app startup
   useEffect(() => {
     checkAuthState();
+    setupSessionEventListeners();
+    
+    // Cleanup listeners on unmount
+    return () => {
+      sessionEvents.removeAllListeners();
+    };
   }, []);
+
+  // Setup session event listeners
+  const setupSessionEventListeners = () => {
+    // Listen for session expiry events
+    sessionEvents.on(SESSION_EVENTS.SESSION_EXPIRED, handleSessionExpired);
+    
+    // Listen for token refresh events
+    sessionEvents.on(SESSION_EVENTS.TOKEN_REFRESHED, handleTokenRefreshed);
+    
+    // Listen for authentication failures
+    sessionEvents.on(SESSION_EVENTS.AUTHENTICATION_FAILED, handleAuthenticationFailed);
+  };
+
+  // Handle session expiry
+  const handleSessionExpired = async (error: any) => {
+    console.log('🔒 Session expired, logging user out');
+    
+    // Clear local user state
+    setUser(null);
+    
+    // Show user-friendly alert
+    Alert.alert(
+      'Session Expired',
+      error.userFriendlyMessage || 'Your session has expired. Please log in again to continue.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            // Additional cleanup if needed
+            console.log('User acknowledged session expiry');
+          },
+        },
+      ],
+      { cancelable: false }
+    );
+  };
+
+  // Handle successful token refresh
+  const handleTokenRefreshed = () => {
+    console.log('✅ Token refreshed successfully');
+    // Could show a subtle notification or update UI state if needed
+  };
+
+  // Handle authentication failures
+  const handleAuthenticationFailed = (error: any) => {
+    console.log('❌ Authentication failed:', error);
+    // Could show specific error message or take action
+  };
 
   const checkAuthState = async () => {
     try {

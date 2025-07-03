@@ -2,6 +2,52 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
+// ============================================================================
+// Session Management Event System (React Native Compatible)
+// ============================================================================
+
+type SessionEventListener = (data?: any) => void;
+
+class SessionEventManager {
+  private listeners: { [event: string]: SessionEventListener[] } = {};
+
+  on(event: string, listener: SessionEventListener) {
+    if (!this.listeners[event]) {
+      this.listeners[event] = [];
+    }
+    this.listeners[event].push(listener);
+  }
+
+  off(event: string, listener: SessionEventListener) {
+    if (!this.listeners[event]) return;
+    this.listeners[event] = this.listeners[event].filter(l => l !== listener);
+  }
+
+  emit(event: string, data?: any) {
+    if (!this.listeners[event]) return;
+    this.listeners[event].forEach(listener => {
+      try {
+        listener(data);
+      } catch (error) {
+        console.error(`Error in session event listener for ${event}:`, error);
+      }
+    });
+  }
+
+  removeAllListeners() {
+    this.listeners = {};
+  }
+}
+
+export const sessionEvents = new SessionEventManager();
+
+// Event types for session management
+export const SESSION_EVENTS = {
+  SESSION_EXPIRED: 'session_expired',
+  TOKEN_REFRESHED: 'token_refreshed',
+  AUTHENTICATION_FAILED: 'authentication_failed',
+} as const;
+
 interface AuthTokens {
   accessToken: string;
   refreshToken: string;
@@ -16,6 +62,20 @@ interface APIResponse<T> {
     message: string;
     statusCode: number;
   };
+}
+
+// Enhanced error type for session expiry
+interface SessionExpiredError extends Error {
+  isSessionExpired: true;
+  code: 'SESSION_EXPIRED';
+  userFriendlyMessage: string;
+  shouldRedirectToLogin: boolean;
+}
+
+// Enhanced API response type with session info
+interface EnhancedAPIResponse<T> extends APIResponse<T> {
+  sessionExpired?: boolean;
+  requiresLogin?: boolean;
 }
 
 interface UserProfile {
@@ -100,6 +160,80 @@ interface Event {
 export class APIService {
   private static accessToken: string | null = null;
   private static refreshToken: string | null = null;
+  private static isRefreshing: boolean = false;
+  private static refreshPromise: Promise<boolean> | null = null;
+
+  // ============================================================================
+  // Session Management Methods
+  // ============================================================================
+
+  /**
+   * Handle session expiry - clear tokens and emit event
+   */
+  private static async handleSessionExpiry(errorMessage?: string): Promise<void> {
+    console.log('🔒 Session expired, clearing tokens and notifying app');
+    
+    await this.clearTokens();
+    
+    const sessionError: SessionExpiredError = {
+      name: 'SessionExpiredError',
+      message: errorMessage || 'Your session has expired',
+      isSessionExpired: true,
+      code: 'SESSION_EXPIRED',
+      userFriendlyMessage: 'Your session has expired. Please log in again to continue.',
+      shouldRedirectToLogin: true,
+    };
+    
+    // Emit session expired event
+    sessionEvents.emit(SESSION_EVENTS.SESSION_EXPIRED, sessionError);
+  }
+
+  /**
+   * Check if error is related to session expiry
+   */
+  private static isSessionExpiredError(error: any): boolean {
+    if (!error) return false;
+    
+    const statusCode = error.statusCode || error.status;
+    const errorCode = error.code;
+    const errorMessage = error.message?.toLowerCase() || '';
+    
+    // Check for various session expiry indicators
+    return (
+      statusCode === 401 ||
+      errorCode === 'AUTHENTICATION_ERROR' ||
+      errorCode === 'INVALID_TOKEN' ||
+      errorCode === 'TOKEN_EXPIRED' ||
+      errorMessage.includes('invalid token') ||
+      errorMessage.includes('token expired') ||
+      errorMessage.includes('session expired') ||
+      errorMessage.includes('authorization header required')
+    );
+  }
+
+  /**
+   * Create user-friendly error message based on error type
+   */
+  private static getUserFriendlyErrorMessage(error: any, action?: string): string {
+    if (this.isSessionExpiredError(error)) {
+      return 'Your session has expired. Please log in again to continue.';
+    }
+    
+    const defaultMessages: Record<string, string> = {
+      'send friend request': 'Failed to send friend request. Please try again.',
+      'respond to friend request': 'Failed to respond to friend request. Please try again.',
+      'get friends': 'Failed to load friends. Please try again.',
+      'get friend requests': 'Failed to load friend requests. Please try again.',
+      'get friendship status': 'Failed to check friendship status. Please try again.',
+      'remove friend': 'Failed to remove friend. Please try again.',
+    };
+    
+    return defaultMessages[action || ''] || 'An error occurred. Please try again.';
+  }
+
+  // ============================================================================
+  // Token Management Methods
+  // ============================================================================
 
   /**
    * Initialize tokens from storage
@@ -161,14 +295,40 @@ export class APIService {
   }
 
   /**
-   * Refresh access token
+   * Refresh access token with concurrent request protection
    */
   static async refreshAccessToken(): Promise<boolean> {
+    // If already refreshing, wait for the existing refresh attempt
+    if (this.isRefreshing && this.refreshPromise) {
+      return await this.refreshPromise;
+    }
+
     if (!this.refreshToken) {
+      console.log('❌ No refresh token available');
+      await this.handleSessionExpiry('No refresh token available');
       return false;
     }
 
+    // Mark as refreshing and create promise
+    this.isRefreshing = true;
+    this.refreshPromise = this.performTokenRefresh();
+
     try {
+      const result = await this.refreshPromise;
+      return result;
+    } finally {
+      this.isRefreshing = false;
+      this.refreshPromise = null;
+    }
+  }
+
+  /**
+   * Perform the actual token refresh
+   */
+  private static async performTokenRefresh(): Promise<boolean> {
+    try {
+      console.log('🔄 Attempting to refresh access token...');
+      
       const response = await this.makeRequest<AuthTokens>('/auth/refresh', {
         method: 'POST',
         body: { refreshToken: this.refreshToken },
@@ -177,12 +337,19 @@ export class APIService {
 
       if (response.success && response.data) {
         await this.storeTokens(response.data);
+        console.log('✅ Token refreshed successfully');
+        
+        // Emit token refreshed event
+        sessionEvents.emit(SESSION_EVENTS.TOKEN_REFRESHED);
         return true;
+      } else {
+        console.log('❌ Token refresh failed:', response.error?.message);
+        await this.handleSessionExpiry(response.error?.message || 'Token refresh failed');
+        return false;
       }
-      return false;
     } catch (error) {
-      console.error('Failed to refresh token:', error);
-      await this.clearTokens();
+      console.error('❌ Token refresh error:', error);
+      await this.handleSessionExpiry('Token refresh failed');
       return false;
     }
   }
@@ -475,31 +642,140 @@ export class APIService {
     }
   }
 
+  /**
+   * Get all photos for an event
+   */
+  static async getEventPhotos(eventId: string) {
+    try {
+      const response = await this.makeRequest(`/events/${eventId}/photos`, {
+        requireAuth: false,
+      });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to get event photos:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get attendees for an event
+   */
+  static async getEventAttendees(eventId: string) {
+    try {
+      const response = await this.makeRequest(`/events/${eventId}/attendees`, {
+        requireAuth: false,
+      });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to get event attendees:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Upload a photo to an event (Cloudinary)
+   */
+  static async uploadEventPhoto(eventId: string, imageUri: string, caption?: string) {
+    try {
+      const formData = new FormData();
+      formData.append('photo', {
+        uri: imageUri,
+        name: 'photo.jpg',
+        type: 'image/jpeg',
+      } as any);
+      if (caption) formData.append('caption', caption);
+      const response = await fetch(`${API_BASE_URL}/events/${eventId}/photos`, {
+        method: 'POST',
+        headers: {
+          'Authorization': this.accessToken ? `Bearer ${this.accessToken}` : '',
+          'Content-Type': 'multipart/form-data',
+        },
+        body: formData,
+      });
+      const data = await response.json();
+      return data.success ? data.data : null;
+    } catch (error) {
+      console.error('Failed to upload event photo:', error);
+      return null;
+    }
+  }
+
   // ============================================================================
   // Search API Methods
   // ============================================================================
 
   /**
    * Search users by name or username
+   * Temporary workaround: Extract users from events data
    */
   static async searchUsers(query: string, limit: number = 20, offset: number = 0): Promise<UserProfile[] | null> {
     try {
-      const queryParams = new URLSearchParams({
-        q: query,
-        limit: String(limit),
-        offset: String(offset)
-      });
-
-      const response = await this.makeRequest<UserProfile[]>(`/users/search?${queryParams}`, {
-        requireAuth: true,
+      // Get events data which includes user information
+      const response = await this.makeRequest<Event[]>('/events', {
+        requireAuth: false,
       });
 
       if (response.success && response.data) {
-        return response.data;
+        // Extract unique users from events (hosts and attendees)
+        const usersMap = new Map<string, UserProfile>();
+        
+        response.data.forEach(event => {
+          // Add host to users map
+          if (event.host && (
+            event.host.name?.toLowerCase().includes(query.toLowerCase()) ||
+            event.host.username?.toLowerCase().includes(query.toLowerCase())
+          )) {
+            usersMap.set(event.host.id, {
+              id: event.host.id,
+              name: event.host.name || '',
+              username: event.host.username || '',
+              email: '', // Not available in events data
+              image: event.host.image || undefined,
+              bio: undefined, // Not available in events data
+              location: undefined, // Not available in events data
+              interests: [],
+              onboardingCompleted: true,
+              emailVerified: undefined,
+              createdAt: new Date().toISOString(),
+            });
+          }
+
+          // Add attendees to users map
+          event.attendees?.forEach(attendee => {
+            if (attendee.user && (
+              attendee.user.name?.toLowerCase().includes(query.toLowerCase()) ||
+              attendee.user.username?.toLowerCase().includes(query.toLowerCase())
+            )) {
+              usersMap.set(attendee.user.id, {
+                id: attendee.user.id,
+                name: attendee.user.name || '',
+                username: attendee.user.username || '',
+                email: '', // Not available in events data
+                image: attendee.user.image || undefined,
+                bio: undefined, // Not available in events data
+                location: undefined, // Not available in events data
+                interests: [],
+                onboardingCompleted: true,
+                emailVerified: undefined,
+                createdAt: new Date().toISOString(),
+              });
+            }
+          });
+        });
+
+        // Convert map to array and apply limit
+        const users = Array.from(usersMap.values()).slice(offset, offset + limit);
+        return users;
       }
       return null;
     } catch (error) {
-      console.error('Failed to search users:', error);
+      console.error('Search users error:', error);
       return null;
     }
   }
@@ -549,52 +825,108 @@ export class APIService {
   // ============================================================================
 
   /**
-   * Send friend request
+   * Send friend request with enhanced error handling
    */
-  static async sendFriendRequest(receiverId: string): Promise<boolean> {
+  static async sendFriendRequest(receiverId: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await this.makeRequest('/friends/request', {
+      const response = await this.makeRequest<any>('/friends/request', {
         method: 'POST',
         body: { receiverId },
         requireAuth: true,
+        action: 'send friend request',
       });
 
-      return response.success;
+      if (response.success) {
+        return { success: true };
+      } else {
+        const errorMessage = this.getUserFriendlyErrorMessage(response.error, 'send friend request');
+        return { success: false, error: errorMessage };
+      }
     } catch (error) {
       console.error('Failed to send friend request:', error);
-      return false;
+      return { success: false, error: 'Failed to send friend request. Please try again.' };
     }
   }
 
   /**
-   * Respond to friend request
+   * Respond to friend request with enhanced error handling
    */
-  static async respondToFriendRequest(requestId: string, action: 'ACCEPTED' | 'DECLINED'): Promise<boolean> {
+  static async respondToFriendRequest(requestId: string, action: 'ACCEPTED' | 'DECLINED'): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await this.makeRequest(`/friends/request/${requestId}`, {
-        method: 'PUT',
-        body: { action },
+      const response = await this.makeRequest<any>('/friends/respond', {
+        method: 'POST',
+        body: { requestId, action },
         requireAuth: true,
+        action: 'respond to friend request',
       });
 
-      return response.success;
+      if (response.success) {
+        return { success: true };
+      } else {
+        const errorMessage = this.getUserFriendlyErrorMessage(response.error, 'respond to friend request');
+        return { success: false, error: errorMessage };
+      }
     } catch (error) {
       console.error('Failed to respond to friend request:', error);
-      return false;
+      return { success: false, error: 'Failed to respond to friend request. Please try again.' };
     }
   }
 
   /**
    * Get user profile by ID
+   * Temporary workaround: Extract user from events data
    */
   static async getUserProfile(userId: string): Promise<UserProfile | null> {
     try {
-      const response = await this.makeRequest<UserProfile>(`/users/${userId}`, {
-        requireAuth: true,
+      // Get events data which includes user information
+      const response = await this.makeRequest<Event[]>('/events', {
+        requireAuth: false,
       });
 
       if (response.success && response.data) {
-        return response.data;
+        // Look for the user in hosts and attendees
+        let foundUser: UserProfile | null = null;
+        
+        for (const event of response.data) {
+          // Check if user is the host
+          if (event.host && event.host.id === userId) {
+            foundUser = {
+              id: event.host.id,
+              name: event.host.name || '',
+              username: event.host.username || '',
+              email: '', // Not available in events data
+              image: event.host.image || undefined,
+              bio: undefined, // Not available in events data
+              location: undefined, // Not available in events data
+              interests: [],
+              onboardingCompleted: true,
+              emailVerified: undefined,
+              createdAt: new Date().toISOString(),
+            };
+            break;
+          }
+          
+          // Check if user is an attendee
+          const attendee = event.attendees?.find(a => a.user.id === userId);
+          if (attendee && attendee.user) {
+            foundUser = {
+              id: attendee.user.id,
+              name: attendee.user.name || '',
+              username: attendee.user.username || '',
+              email: '', // Not available in events data
+              image: attendee.user.image || undefined,
+              bio: undefined, // Not available in events data
+              location: undefined, // Not available in events data
+              interests: [],
+              onboardingCompleted: true,
+              emailVerified: undefined,
+              createdAt: new Date().toISOString(),
+            };
+            break;
+          }
+        }
+        
+        return foundUser;
       }
       return null;
     } catch (error) {
@@ -602,6 +934,108 @@ export class APIService {
       return null;
     }
   }
+
+  /**
+   * Get user's friends list
+   */
+  static async getFriends(): Promise<UserProfile[]> {
+    try {
+      const response = await this.makeRequest<UserProfile[]>('/friends', {
+        requireAuth: true,
+      });
+
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('Failed to get friends:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get pending friend requests (sent and received)
+   */
+  static async getFriendRequests(): Promise<{
+    sent: Array<{
+      id: string;
+      receiver: UserProfile;
+      createdAt: string;
+    }>;
+    received: Array<{
+      id: string;
+      sender: UserProfile;
+      createdAt: string;
+    }>;
+  }> {
+    try {
+      const response = await this.makeRequest<{
+        sent: Array<{ id: string; user: UserProfile; createdAt: string }>;
+        received: Array<{ id: string; user: UserProfile; createdAt: string }>;
+      }>('/friends/requests', {
+        requireAuth: true,
+      });
+
+      if (response.success && response.data) {
+        return {
+          sent: response.data.sent.map(req => ({
+            id: req.id,
+            receiver: req.user,
+            createdAt: req.createdAt,
+          })),
+          received: response.data.received.map(req => ({
+            id: req.id,
+            sender: req.user,
+            createdAt: req.createdAt,
+          })),
+        };
+      }
+      return { sent: [], received: [] };
+    } catch (error) {
+      console.error('Failed to get friend requests:', error);
+      return { sent: [], received: [] };
+    }
+  }
+
+  /**
+   * Get suggested friends - users who might be interesting to connect with
+   */
+  static async getSuggestedFriends(): Promise<UserProfile[]> {
+    try {
+      // Get a list of all users through search (empty query returns recent users)
+      const allUsers = await this.searchUsers('', 50);
+      if (!allUsers) return [];
+
+      // Get current friends and pending requests to filter them out
+      const [friends, requests] = await Promise.all([
+        this.getFriends(),
+        this.getFriendRequests()
+      ]);
+
+      const currentUser = await this.getCurrentUser();
+      if (!currentUser) return [];
+
+      // Create sets of user IDs to exclude
+      const excludeIds = new Set<string>();
+      excludeIds.add(currentUser.id); // Don't suggest yourself
+      
+      friends.forEach(friend => excludeIds.add(friend.id));
+      requests.sent.forEach(req => excludeIds.add(req.receiver.id));
+      requests.received.forEach(req => excludeIds.add(req.sender.id));
+
+      // Filter out excluded users and return suggestions
+      const suggested = allUsers.filter(user => !excludeIds.has(user.id));
+      
+      console.log('Suggested friends loaded:', suggested.length, 'suggestions');
+      return suggested.slice(0, 20); // Limit to 20 suggestions
+    } catch (error) {
+      console.error('Failed to get suggested friends:', error);
+      return [];
+    }
+  }
+
+
 
   /**
    * Get friendship status between current user and another user
@@ -621,15 +1055,32 @@ export class APIService {
       if (response.success && response.data) {
         return response.data;
       }
-      return null;
+      return { status: 'NONE' };
     } catch (error) {
       console.error('Failed to get friendship status:', error);
-      return null;
+      return { status: 'NONE' };
     }
   }
 
   /**
-   * Make HTTP request to backend API
+   * Remove a friend
+   */
+  static async removeFriend(userId: string): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<any>(`/friends/${userId}`, {
+        method: 'DELETE',
+        requireAuth: true,
+      });
+
+      return response.success;
+    } catch (error) {
+      console.error('Failed to remove friend:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Make HTTP request to backend API with enhanced session management
    */
   private static async makeRequest<T>(
     endpoint: string,
@@ -638,6 +1089,7 @@ export class APIService {
       body?: any;
       requireAuth?: boolean;
       retryOnTokenRefresh?: boolean;
+      action?: string; // For user-friendly error messages
     } = {}
   ): Promise<APIResponse<T>> {
     const {
@@ -645,6 +1097,7 @@ export class APIService {
       body,
       requireAuth = false,
       retryOnTokenRefresh = true,
+      action,
     } = options;
 
     const url = `${API_BASE_URL}${endpoint}`;
@@ -671,36 +1124,74 @@ export class APIService {
       
       // Handle 401 Unauthorized - try to refresh token
       if (response.status === 401 && requireAuth && retryOnTokenRefresh) {
+        console.log('🔒 Received 401, attempting token refresh...');
+        
         const refreshed = await this.refreshAccessToken();
         if (refreshed) {
+          console.log('✅ Token refreshed, retrying request...');
           // Retry request with new token
           return this.makeRequest<T>(endpoint, { ...options, retryOnTokenRefresh: false });
+        } else {
+          console.log('❌ Token refresh failed, session expired');
+          // Session is expired, don't return generic error
+          return {
+            success: false,
+            error: {
+              code: 'SESSION_EXPIRED',
+              message: 'Your session has expired. Please log in again.',
+              statusCode: 401,
+            },
+            sessionExpired: true,
+            requiresLogin: true,
+          } as EnhancedAPIResponse<T>;
         }
       }
 
       const data = await response.json();
       
       if (!response.ok) {
+        const error = data.error || {
+          code: 'REQUEST_FAILED',
+          message: `Request failed with status ${response.status}`,
+          statusCode: response.status,
+        };
+
+        // Check if this is a session-related error
+        if (this.isSessionExpiredError(error)) {
+          console.log('🔒 Detected session expired error');
+          await this.handleSessionExpiry(error.message);
+          
+          return {
+            success: false,
+            error: {
+              ...error,
+              message: this.getUserFriendlyErrorMessage(error, action),
+            },
+            sessionExpired: true,
+            requiresLogin: true,
+          } as EnhancedAPIResponse<T>;
+        }
+
         return {
           success: false,
-          error: data.error || {
-            code: 'REQUEST_FAILED',
-            message: `Request failed with status ${response.status}`,
-            statusCode: response.status,
-          },
+          error,
         };
       }
 
       return data;
     } catch (error) {
       console.error('API request failed:', error);
+      
+      // Check if this is a network error that might indicate session issues
+      const networkError = {
+        code: 'NETWORK_ERROR',
+        message: 'Network request failed',
+        statusCode: 0,
+      };
+
       return {
         success: false,
-        error: {
-          code: 'NETWORK_ERROR',
-          message: 'Network request failed',
-          statusCode: 0,
-        },
+        error: networkError,
       };
     }
   }

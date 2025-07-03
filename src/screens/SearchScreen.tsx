@@ -86,7 +86,7 @@ const SearchScreen: React.FC = () => {
   }, [searchQuery, selectedFilter, debouncedSearch]);
 
   const handleUserPress = (user: any) => {
-    (navigation as any).navigate('Profile', { userId: user.id });
+    (navigation as any).navigate('UserProfile', { userId: user.id });
   };
 
   const handleEventPress = (event: any) => {
@@ -347,17 +347,17 @@ const styles = StyleSheet.create({
   searchBlur: {
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
-    ...Shadows.medium,
+    // Remove shadow from BlurView to avoid performance warning
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     gap: Spacing.sm,
   },
   searchInput: {
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
   filterButton: {
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
-    ...Shadows.small,
+    // Remove shadow to avoid performance warning on BlurView
   },
   filterButtonActive: {
     transform: [{ scale: 0.95 }],
@@ -393,10 +393,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     gap: Spacing.xs,
   },
   filterButtonContentActive: {
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     overflow: 'hidden',
     marginBottom: Spacing.lg,
-    ...Shadows.medium,
+    // Remove shadow to avoid performance warning on BlurView
   },
   emptyIconBlur: {
     flex: 1,
@@ -446,10 +446,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 50,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   emptyTitle: {
     fontSize: FontSize.xl,
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
-    ...Shadows.medium,
+    // Remove shadow to avoid performance warning on BlurView
   },
   resultBlur: {
     borderRadius: BorderRadius.lg,
@@ -488,9 +488,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: Spacing.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   userAvatar: {
     width: 50,

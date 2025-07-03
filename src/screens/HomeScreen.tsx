@@ -14,10 +14,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../constants';
 import { Event, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { APIService } from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width - (Spacing.xl * 2); // Slightly smaller for better side margins
@@ -220,12 +221,22 @@ const HomeScreen: React.FC = () => {
 
   const loadEvents = async () => {
     try {
-      // TODO: Replace with real API call to fetch events
-      // const fetchedEvents = await APIService.getEvents();
-      // For now, show empty state since we removed mock data
-      setEvents([]);
+      const fetchedEvents = await APIService.getEvents();
+      if (fetchedEvents) {
+        // Convert string dates to Date objects and cast to correct type
+        const eventsWithDateObjects = fetchedEvents.map(event => ({
+          ...event,
+          date: new Date(event.date),
+          createdAt: new Date(event.createdAt),
+          updatedAt: new Date(event.updatedAt),
+        })) as Event[];
+        setEvents(eventsWithDateObjects);
+      } else {
+        setEvents([]);
+      }
     } catch (error) {
       console.error('Error loading events:', error);
+      setEvents([]);
     } finally {
       setLoading(false);
     }
@@ -240,6 +251,13 @@ const HomeScreen: React.FC = () => {
   useEffect(() => {
     loadEvents();
   }, []);
+
+  // Refresh events when screen comes into focus (e.g. after creating a new event)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadEvents();
+    }, [])
+  );
 
   const handleEventPress = (eventId: string) => {
     navigation.navigate('EventDetails', { eventId });

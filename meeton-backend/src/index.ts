@@ -17,6 +17,13 @@ import userRoutes from './routes/users';
 import eventRoutes from './routes/events';
 import friendRoutes from './routes/friends';
 
+console.log('🔥 Routes imported:', { 
+  authRoutes: !!authRoutes, 
+  userRoutes: !!userRoutes, 
+  eventRoutes: !!eventRoutes, 
+  friendRoutes: !!friendRoutes 
+});
+
 // Load environment variables
 dotenv.config();
 
@@ -92,10 +99,16 @@ app.get('/health', async (req, res) => {
   }
 });
 
+
+
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/events', eventRoutes);
+app.use('/api/events', (req, res, next) => {
+  console.log('🔍 Events router hit:', req.method, req.originalUrl, 'params:', req.params);
+  next();
+}, eventRoutes);
 app.use('/api/friends', friendRoutes);
 
 // API documentation endpoint

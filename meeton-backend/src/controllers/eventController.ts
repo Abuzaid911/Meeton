@@ -27,6 +27,8 @@ class EventController {
     this.removeAttendee = this.removeAttendee.bind(this);
     this.getEventAttendees = this.getEventAttendees.bind(this);
     this.getUserEvents = this.getUserEvents.bind(this);
+    this.uploadEventPhoto = this.uploadEventPhoto.bind(this);
+    this.getEventPhotos = this.getEventPhotos.bind(this);
   }
 
   /**
@@ -247,6 +249,41 @@ class EventController {
       const events = await eventService.getUserEvents(userId);
       
       sendSuccess(res, events, 'User events retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Upload a photo to an event
+   * POST /api/events/:id/photos
+   */
+  async uploadEventPhoto(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new AuthenticationError('Authentication required');
+      const { id: eventId } = req.params;
+      const { caption } = req.body;
+      const imageUrl = req.file?.path;
+      if (!imageUrl) throw new ValidationError('Image upload failed');
+      // Only allow users who RSVP'd YES
+      const isAttending = await eventService.isUserAttendingEvent(eventId, req.user.id);
+      if (!isAttending) throw new AuthorizationError('Only going users can upload photos');
+      const photo = await eventService.addEventPhoto(eventId, req.user.id, imageUrl, caption);
+      sendSuccess(res, photo, 'Photo uploaded successfully', 201);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get all photos for an event
+   * GET /api/events/:id/photos
+   */
+  async getEventPhotos(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id: eventId } = req.params;
+      const photos = await eventService.getEventPhotos(eventId);
+      sendSuccess(res, photos, 'Event photos retrieved successfully');
     } catch (error) {
       next(error);
     }

@@ -75,7 +75,10 @@ export class FriendService {
       // Update the friend request status
       await this.prisma.friendRequest.update({
         where: { id: requestId },
-        data: { status: action as FriendRequestStatus }
+        data: { 
+          status: action as FriendRequestStatus,
+          responseTime: new Date()
+        }
       });
 
       return true;

@@ -32,16 +32,46 @@ router.put(
 );
 
 /**
- * Get user by ID
- * GET /api/users/:id
+ * Test endpoint - no middleware
+ * GET /api/users/test-search
  */
-router.get('/:id', authenticate, userController.getUserById);
+router.get('/test-search', async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: [
+        {
+          id: 'test-id',
+          name: 'Test User',
+          username: 'testuser',
+          email: 'test@example.com'
+        }
+      ],
+      message: 'Test search working'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Test failed',
+        statusCode: 500
+      }
+    });
+  }
+});
 
 /**
  * Search users
  * GET /api/users/search
  */
-router.get('/search', authenticate, userController.searchUsers);
+router.get('/search', userController.searchUsers);
+
+/**
+ * Get user by ID
+ * GET /api/users/:id
+ */
+router.get('/:id', authenticate, userController.getUserById);
 
 /**
  * Check username availability

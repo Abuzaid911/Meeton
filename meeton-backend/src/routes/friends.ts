@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { friendController } from '../controllers/friendController';
 import { authenticate } from '../middleware/auth';
 import { validateBody } from '../middleware/validation';

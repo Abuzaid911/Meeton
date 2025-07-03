@@ -20,6 +20,7 @@ import EventDetailsScreen from '../screens/events/EventDetailsScreen';
 import GuestListScreen from '../screens/events/GuestListScreen';
 import EventPhotosScreen from '../screens/events/EventPhotosScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import FriendsScreen from '../screens/profile/FriendsScreen';
 import WelcomeScreen from '../screens/auth/WelcomeScreen';
 
 const Tab = createBottomTabNavigator();
@@ -102,6 +103,14 @@ function CreateEventStack() {
           headerShown: false 
         }}
       />
+      <Stack.Screen
+        name="EventDetails"
+        component={EventDetailsScreen}
+        options={{
+          title: 'Event Details',
+          headerShown: false
+        }}
+      />
     </Stack.Navigator>
   );
 }
@@ -160,19 +169,38 @@ function NotificationsStack() {
   );
 }
 
-// Profile Tab Component (navigates to global profile)
-function ProfileTab() {
-  const navigation = useNavigation();
-  
-  React.useEffect(() => {
-    // Navigate to global profile screen when tab is accessed
-    navigation.navigate('Profile' as never);
-  }, [navigation]);
-  
+// Stack Navigator for Profile
+function ProfileStack() {
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.black }}>
-      {/* This component will immediately redirect */}
-    </View>
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: Colors.backgroundSecondary,
+          shadowColor: 'transparent',
+          elevation: 0,
+        },
+        headerTitleStyle: {
+          color: Colors.text,
+          fontSize: 18,
+          fontWeight: '600',
+        },
+        headerTintColor: Colors.primary,
+      }}
+    >
+      <Stack.Screen 
+        name="ProfileMain" 
+        component={ProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="EditProfile" 
+        component={EditProfileScreen}
+        options={{ 
+          title: 'Edit Profile',
+          presentation: 'modal'
+        }}
+      />
+    </Stack.Navigator>
   );
 }
 
@@ -266,7 +294,7 @@ function BottomTabNavigator() {
       />
       <Tab.Screen 
         name="Profile" 
-        component={ProfileTab}
+        component={ProfileStack}
         options={{ tabBarLabel: 'Profile' }}
       />
     </Tab.Navigator>
@@ -288,7 +316,7 @@ function RootStackNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Main" component={BottomTabNavigator} />
       <Stack.Screen 
-        name="Profile" 
+        name="UserProfile" 
         component={ProfileScreen}
         options={{
           presentation: 'modal',
@@ -296,10 +324,11 @@ function RootStackNavigator() {
         }}
       />
       <Stack.Screen 
-        name="EditProfile" 
-        component={EditProfileScreen}
+        name="Friends" 
+        component={FriendsScreen}
         options={{
           presentation: 'modal',
+          animationTypeForReplace: 'push',
         }}
       />
     </Stack.Navigator>

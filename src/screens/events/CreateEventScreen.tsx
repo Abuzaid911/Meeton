@@ -190,6 +190,7 @@ const CreateEventScreen: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [showLocationNameModal, setShowLocationNameModal] = useState(false);
   const [selectedLocationForNaming, setSelectedLocationForNaming] = useState<LocationSuggestion | null>(null);
+  const [createdEventId, setCreatedEventId] = useState<string | null>(null);
   const [form, setForm] = useState<EventForm>({
     name: '',
     description: '',
@@ -311,16 +312,9 @@ const CreateEventScreen: React.FC = () => {
       setIsCreating(false);
       
       if (newEvent) {
-        // Show success message and navigate to home screen
-        Alert.alert('Event Created!', 'Your event has been created successfully.', [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Navigate to the home tab to see the new event
-              navigation.navigate('Home');
-            }
-          }
-        ]);
+        // Store the created event ID and move to step 5
+        setCreatedEventId(newEvent.id);
+        setCurrentStep(5);
       } else {
         Alert.alert('Error', 'Failed to create event. Please try again.');
       }
@@ -1571,9 +1565,42 @@ const CreateEventScreen: React.FC = () => {
           <GlassButton
             title="View Event"
             icon="eye"
-            onPress={() => Alert.alert('Navigate', 'Would navigate to event details')}
+            onPress={() => {
+              if (createdEventId) {
+                navigation.navigate('EventDetails', { eventId: createdEventId });
+              }
+            }}
             variant="secondary"
           />
+        </View>
+        
+        <View style={styles.createAnotherContainer}>
+          <TouchableOpacity
+            style={styles.createAnotherButton}
+            onPress={() => {
+              // Reset the form and go back to step 1
+              setForm({
+                name: '',
+                description: '',
+                type: '',
+                privacy: 'PRIVATE',
+                image: null,
+                color: colorOptions[0],
+                backgroundType: 'color',
+                date: '',
+                time: '',
+                location: '',
+                locationDisplayName: '',
+                coordinates: null,
+                invitedFriends: [],
+                maxGuests: '',
+              });
+              setCreatedEventId(null);
+              setCurrentStep(1);
+            }}
+          >
+            <Text style={styles.createAnotherText}>Create Another Event</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -2260,6 +2287,20 @@ const styles = StyleSheet.create({
   },
   navigationSpacer: {
     flex: 1,
+  },
+  createAnotherContainer: {
+    marginTop: Spacing.lg,
+    alignItems: 'center',
+  },
+  createAnotherButton: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  createAnotherText: {
+    fontSize: FontSize.md,
+    color: Colors.primary,
+    fontWeight: FontWeight.semibold,
+    textDecorationLine: 'underline',
   },
   glassButton: {
     borderRadius: BorderRadius.lg,

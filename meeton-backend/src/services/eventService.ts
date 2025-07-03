@@ -744,6 +744,52 @@ class EventService {
 
     return { hosting, attending };
   }
+
+  /**
+   * Check if a user is attending (RSVP YES) an event
+   */
+  async isUserAttendingEvent(eventId: string, userId: string): Promise<boolean> {
+    const attendee = await prisma.attendee.findUnique({
+      where: { userId_eventId: { userId, eventId } },
+    });
+    return attendee?.rsvp === RSVP.YES;
+  }
+
+  /**
+   * Add a photo to an event
+   */
+  async addEventPhoto(eventId: string, userId: string, imageUrl: string, caption?: string) {
+    // Validate event and user
+    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    if (!event) throw new NotFoundError('Event not found');
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundError('User not found');
+    // Create photo
+    return prisma.eventPhoto.create({
+      data: {
+        eventId,
+        userId,
+        imageUrl,
+        caption,
+      },
+      include: {
+        user: { select: { id: true, name: true, username: true, image: true } },
+      },
+    });
+  }
+
+  /**
+   * Get all photos for an event
+   */
+  async getEventPhotos(eventId: string) {
+    return prisma.eventPhoto.findMany({
+      where: { eventId },
+      orderBy: { uploadedAt: 'desc' },
+      include: {
+        user: { select: { id: true, name: true, username: true, image: true } },
+      },
+    });
+  }
 }
 
 // Export singleton instance

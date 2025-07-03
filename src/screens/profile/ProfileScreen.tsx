@@ -15,7 +15,7 @@ import {
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../constants';
 import { currentUser } from '../../services/mockData';
 import { useAuth } from '../../contexts/AuthContext';
@@ -64,9 +64,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     status: 'NONE' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'FRIENDS';
     requestId?: string;
   } | null>(null);
+  const [friendsData, setFriendsData] = useState<{
+    friends: any[];
+    requests: { sent: any[]; received: any[] };
+    suggested: any[];
+  }>({ friends: [], requests: { sent: [], received: [] }, suggested: [] });
 
   // Check if viewing own profile or someone else's
   const isOwnProfile = !userId || userId === user?.id;
+
+
 
   useEffect(() => {
     if (userId && userId !== user?.id) {
@@ -75,8 +82,38 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     } else {
       // Viewing own profile
       setProfileUser(user || currentUser);
+      loadFriendsData();
     }
   }, [userId, user?.id]);
+
+  // Refresh friends data when returning to profile screen
+  useFocusEffect(
+    React.useCallback(() => {
+      if (isOwnProfile) {
+        loadFriendsData();
+      }
+    }, [isOwnProfile])
+  );
+
+  const loadFriendsData = async () => {
+    if (!isOwnProfile) return;
+
+    try {
+      const [friends, requests, suggested] = await Promise.all([
+        APIService.getFriends(),
+        APIService.getFriendRequests(),
+        APIService.getSuggestedFriends()
+      ]);
+
+      setFriendsData({
+        friends,
+        requests,
+        suggested
+      });
+    } catch (error) {
+      console.error('Failed to load friends data:', error);
+    }
+  };
 
   const loadUserProfile = async () => {
     if (!userId) return;
@@ -110,14 +147,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     if (!userId) return;
     
     try {
-      const success = await APIService.sendFriendRequest(userId);
-      if (success) {
+      const result = await APIService.sendFriendRequest(userId);
+      if (result.success) {
         Alert.alert('Success', `Friend request sent to ${profileUser.name}!`);
         setFriendshipStatus({ status: 'PENDING_SENT' });
       } else {
-        Alert.alert('Error', 'Failed to send friend request');
+        Alert.alert('Error', result.error || 'Failed to send friend request');
       }
     } catch (error) {
+      console.error('Error sending friend request:', error);
       Alert.alert('Error', 'Failed to send friend request');
     }
   };
@@ -126,15 +164,33 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     if (!friendshipStatus?.requestId) return;
     
     try {
-      const success = await APIService.respondToFriendRequest(friendshipStatus.requestId, 'ACCEPTED');
-      if (success) {
+      const result = await APIService.respondToFriendRequest(friendshipStatus.requestId, 'ACCEPTED');
+      if (result.success) {
         Alert.alert('Success', 'Friend request accepted!');
         setFriendshipStatus({ status: 'FRIENDS' });
       } else {
-        Alert.alert('Error', 'Failed to accept friend request');
+        Alert.alert('Error', result.error || 'Failed to accept friend request');
       }
     } catch (error) {
+      console.error('Error accepting friend request:', error);
       Alert.alert('Error', 'Failed to accept friend request');
+    }
+  };
+
+  const handleDeclineFriendRequest = async () => {
+    if (!friendshipStatus?.requestId) return;
+    
+    try {
+      const result = await APIService.respondToFriendRequest(friendshipStatus.requestId, 'DECLINED');
+      if (result.success) {
+        Alert.alert('Success', 'Friend request declined');
+        setFriendshipStatus({ status: 'NONE' });
+      } else {
+        Alert.alert('Error', result.error || 'Failed to decline friend request');
+      }
+    } catch (error) {
+      console.error('Error declining friend request:', error);
+      Alert.alert('Error', 'Failed to decline friend request');
     }
   };
 
@@ -176,7 +232,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
-  // Mock stats data (removed Favorites)
+  // Stats data (using real friends count for own profile)
   const stats: StatItem[] = [
     {
       icon: 'star',
@@ -193,13 +249,46 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       icon: 'people',
       label: 'Friends',
-      value: '158',
+      value: isOwnProfile ? String(friendsData.friends.length) : '158',
       color: Colors.systemGreen,
     },
   ];
 
   // Menu sections (removed Support section)
   const menuSections: MenuSection[] = [
+    {
+      title: 'Friends',
+      items: [
+        {
+          icon: 'people',
+          label: 'My Friends',
+          subtitle: `${friendsData.friends.length} friends`,
+          onPress: () => navigation.navigate('Friends', { tab: 'friends' }),
+          showChevron: true,
+        },
+        {
+          icon: 'person-add',
+          label: 'Friend Requests',
+          subtitle: `${friendsData.requests.received.length} pending requests`,
+          onPress: () => navigation.navigate('Friends', { tab: 'requests' }),
+          showChevron: true,
+        },
+        {
+          icon: 'people-outline',
+          label: 'Suggestions',
+          subtitle: `${friendsData.suggested.length} people you may know`,
+          onPress: () => navigation.navigate('Friends', { tab: 'suggestions' }),
+          showChevron: true,
+        },
+        {
+          icon: 'paper-plane-outline',
+          label: 'Sent Requests',
+          subtitle: `${friendsData.requests.sent.length} pending`,
+          onPress: () => navigation.navigate('Friends', { tab: 'sent' }),
+          showChevron: true,
+        },
+      ],
+    },
     {
       title: 'Account',
       items: [
@@ -384,25 +473,51 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.friendshipActions}>
-                    <TouchableOpacity 
-                      style={[
-                        styles.friendshipButton,
-                        getFriendButtonConfig().style === 'success' ? styles.friendshipButtonSuccess :
-                        getFriendButtonConfig().style === 'secondary' ? styles.friendshipButtonSecondary :
-                        styles.friendshipButtonPrimary
-                      ]}
-                      onPress={getFriendButtonConfig().onPress}
-                    >
-                      <BlurView intensity={80} style={styles.friendshipButtonBlur}>
-                        <Text style={styles.friendshipButtonText}>{getFriendButtonConfig().title}</Text>
-                      </BlurView>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity style={styles.messageButton}>
-                      <BlurView intensity={80} style={styles.messageButtonBlur}>
-                        <Ionicons name="chatbubble" size={20} color={Colors.white} />
-                      </BlurView>
-                    </TouchableOpacity>
+                    {friendshipStatus?.status === 'PENDING_RECEIVED' ? (
+                      // Show Accept and Decline buttons for pending received requests
+                      <>
+                        <TouchableOpacity 
+                          style={[styles.friendshipButton, styles.friendshipButtonPrimary]}
+                          onPress={handleAcceptFriendRequest}
+                        >
+                          <BlurView intensity={80} style={styles.friendshipButtonBlur}>
+                            <Text style={styles.friendshipButtonText}>Accept</Text>
+                          </BlurView>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                          style={[styles.messageButton, styles.declineButton]}
+                          onPress={handleDeclineFriendRequest}
+                        >
+                          <BlurView intensity={80} style={styles.messageButtonBlur}>
+                            <Ionicons name="close" size={20} color={Colors.white} />
+                          </BlurView>
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      // Show single action button and message button for other states
+                      <>
+                        <TouchableOpacity 
+                          style={[
+                            styles.friendshipButton,
+                            getFriendButtonConfig().style === 'success' ? styles.friendshipButtonSuccess :
+                            getFriendButtonConfig().style === 'secondary' ? styles.friendshipButtonSecondary :
+                            styles.friendshipButtonPrimary
+                          ]}
+                          onPress={getFriendButtonConfig().onPress}
+                        >
+                          <BlurView intensity={80} style={styles.friendshipButtonBlur}>
+                            <Text style={styles.friendshipButtonText}>{getFriendButtonConfig().title}</Text>
+                          </BlurView>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity style={styles.messageButton}>
+                          <BlurView intensity={80} style={styles.messageButtonBlur}>
+                            <Ionicons name="chatbubble" size={20} color={Colors.white} />
+                          </BlurView>
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
                 )}
               </View>
@@ -741,6 +856,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  declineButton: {
+    backgroundColor: 'rgba(255, 59, 48, 0.2)',
   },
 });
 

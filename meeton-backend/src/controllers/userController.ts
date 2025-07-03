@@ -126,10 +126,6 @@ class UserController {
    */
   async searchUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      if (!req.user) {
-        throw new AuthenticationError('Authentication required');
-      }
-
       const { q, limit = 20, offset = 0 } = req.query;
       
       if (!q || typeof q !== 'string') {

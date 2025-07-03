@@ -4,8 +4,13 @@ import { authenticate } from '../middleware/auth';
 import { validateBody } from '../middleware/validation';
 import { eventCreationLimiter, apiLimiter } from '../middleware/rateLimit';
 import { createEventSchema } from '../utils/validation';
+import upload from '../config/multer';
 
 const router = Router();
+
+console.log('📁 Events routes file loaded');
+console.log('🔍 eventController:', eventController);
+console.log('🔍 eventController.uploadEventPhoto:', eventController.uploadEventPhoto);
 
 /**
  * Event Routes - /api/events
@@ -27,12 +32,36 @@ router.get('/',
 );
 
 /**
- * Get event by ID
- * GET /api/events/:id
+ * Upload a photo to an event
+ * POST /api/events/:id/photos
  */
-router.get('/:id', 
-  apiLimiter, 
-  eventController.getEventById
+router.post('/:id/photos',
+  (req, res, next) => {
+    console.log('📸 POST /:id/photos route hit!', { params: req.params, body: req.body });
+    next();
+  },
+  authenticate,
+  upload.single('photo'),
+  (req, res) => {
+    console.log('📸 Photo upload handler working!');
+    res.json({ success: true, message: 'Photo upload working', params: req.params });
+  }
+);
+
+/**
+ * Get all photos for an event
+ * GET /api/events/:id/photos
+ */
+router.get('/:id/photos',
+  (req, res, next) => {
+    console.log('📷 GET /:id/photos route hit!', { params: req.params });
+    next();
+  },
+  apiLimiter,
+  (req, res) => {
+    console.log('📷 Get photos handler working!');
+    res.json({ success: true, message: 'Get photos working', data: [], params: req.params });
+  }
 );
 
 /**
@@ -52,6 +81,15 @@ router.get('/:id/attendees',
 router.get('/user/:userId', 
   apiLimiter, 
   eventController.getUserEvents
+);
+
+/**
+ * Get event by ID
+ * GET /api/events/:id
+ */
+router.get('/:id', 
+  apiLimiter, 
+  eventController.getEventById
 );
 
 // ============================================================================
@@ -109,5 +147,7 @@ router.delete('/:id/attendees/:userId',
   authenticate,
   eventController.removeAttendee
 );
+
+console.log('📋 Router has', router.stack?.length || 0, 'routes defined');
 
 export default router; 
