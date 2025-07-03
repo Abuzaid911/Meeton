@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -22,11 +21,15 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "google",
-            "CFBundleURLSchemes": ["com.googleusercontent.apps.38702126641-cs5p51cu1m4elmp9li0ptv2ot77k6pb9"]
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.38702126641-cs5p51cu1m4elmp9li0ptv2ot77k6pb9"
+            ]
           },
           {
             "CFBundleURLName": "meeton",
-            "CFBundleURLSchemes": ["meeton"]
+            "CFBundleURLSchemes": [
+              "meeton"
+            ]
           }
         ]
       }
@@ -42,8 +45,14 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION"
-      ]
+      ],
+      "package": "com.meeton.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
