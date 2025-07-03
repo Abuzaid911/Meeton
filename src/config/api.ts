@@ -9,7 +9,7 @@ const isDev = __DEV__ || process.env.NODE_ENV === 'development';
 // API Base URLs for different environments
 const API_URLS = {
   development: 'http://localhost:3000/api',
-  production: 'https://meeton-backend.onrender.com/api', // This will be your Render URL
+  production: 'https://meeton-backend-abuzaid911.onrender.com/api', // Your actual Render URL
 };
 
 // Export the appropriate API URL based on environment
