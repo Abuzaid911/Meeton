@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { API_BASE_URL } from './api';
 
 export const GOOGLE_CONFIG = {
   // iOS Configuration
@@ -7,10 +8,8 @@ export const GOOGLE_CONFIG = {
   // Web Configuration (for backend) - from your existing setup
   webClientId: '38702126641-tpk5lqa0g5knb0ie73r0c0i29kha5019.apps.googleusercontent.com',
   
-  // Backend endpoints
-  backendBaseUrl: __DEV__ 
-    ? 'http://localhost:3000/api' 
-    : 'https://your-production-api.com/api',
+  // Backend endpoints - use same logic as main API config
+  backendBaseUrl: API_BASE_URL,
     
   // OAuth endpoints
   authEndpoint: '/auth/google',
