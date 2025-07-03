@@ -9,10 +9,11 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
-generator erd {
-  provider = "prisma-erd-generator"
-  output   = "../docs/database-erd.svg"
-}
+// ERD generator disabled in production due to Chrome dependency
+// generator erd {
+//   provider = "prisma-erd-generator"
+//   output   = "../docs/database-erd.svg"
+// }
 
 datasource db {
   provider = "cockroachdb"
