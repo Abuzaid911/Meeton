@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "build": "prisma generate && tsc",
-    "start": "node dist/index.js",
+    "start": "prisma generate && node dist/index.js",
     "start:prod": "npm run db:generate && npm run build && npm run db:migrate:prod && npm run start",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "dev:watch": "nodemon --exec ts-node src/index.ts",
