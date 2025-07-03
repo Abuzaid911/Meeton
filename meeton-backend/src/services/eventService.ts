@@ -519,7 +519,7 @@ class EventService {
 
     // Check capacity
     if (event.capacity) {
-      const yesRSVPs = event.attendees.filter(a => a.rsvp === RSVP.YES).length;
+      const yesRSVPs = event.attendees.filter((a: Attendee) => a.rsvp === RSVP.YES).length;
       if (rsvp === RSVP.YES && yesRSVPs >= event.capacity) {
         throw new ValidationError('Event is at capacity');
       }
