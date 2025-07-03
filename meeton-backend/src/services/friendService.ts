@@ -1,4 +1,4 @@
-import { PrismaClient, FriendRequestStatus, FriendRequest } from '../generated/prisma';
+import { PrismaClient, FriendRequestStatus, FriendRequest } from '@prisma/client';
 import DatabaseManager from '../config/database';
 
 /**

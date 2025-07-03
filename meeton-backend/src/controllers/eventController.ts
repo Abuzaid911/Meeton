@@ -8,7 +8,7 @@ import {
   AuthorizationError 
 } from '../utils/errors';
 import { createEventSchema } from '../utils/validation';
-import { RSVP } from '../generated/prisma';
+import { RSVP } from '@prisma/client';
 
 /**
  * Event Controller - Controllers ONLY handle HTTP concerns

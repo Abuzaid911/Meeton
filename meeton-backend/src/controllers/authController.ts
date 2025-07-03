@@ -17,7 +17,7 @@ import {
   resetPasswordSchema,
   changePasswordSchema
 } from '../utils/validation';
-import { User } from '../generated/prisma';
+import { User } from '@prisma/client';
 import { prisma } from '../config/database';
 
 /**

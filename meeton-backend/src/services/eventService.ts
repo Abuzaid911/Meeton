@@ -1,4 +1,4 @@
-import { Event, Attendee, RSVP, PrivacyLevel } from '../generated/prisma';
+import { Event, Attendee, RSVP, PrivacyLevel } from '@prisma/client';
 import { prisma } from '../config/database';
 import { 
   ValidationError, 

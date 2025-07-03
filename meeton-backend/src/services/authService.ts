@@ -14,7 +14,7 @@ import {
   LoginInput, 
   RefreshTokenInput 
 } from '../utils/validation';
-import { User } from '../generated/prisma';
+import { User } from '@prisma/client';
 
 /**
  * JWT Token Response Interface

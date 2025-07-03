@@ -2,7 +2,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy, Profile as GoogleProfile } from 'passport-google-oauth20';
 import { prisma } from './database';
 import { getEnv } from './env';
-import { User } from '../generated/prisma';
+import { User } from '@prisma/client';
 
 /**
  * Google OAuth Profile Interface
