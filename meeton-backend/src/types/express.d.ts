@@ -6,10 +6,10 @@ declare global {
     interface Request {
       user?: {
         id: string;
-        email: string;
+        email: string | null;
         username: string;
-        name?: string;
-        image?: string;
+        name?: string | null;
+        image?: string | null;
         onboardingCompleted?: boolean;
         iat?: number;
         exp?: number;
@@ -24,6 +24,18 @@ declare global {
         path: string;
         size: number;
       };
+    }
+    
+    // Override the default User interface
+    interface User {
+      id: string;
+      email: string | null;
+      username: string;
+      name?: string | null;
+      image?: string | null;
+      onboardingCompleted?: boolean;
+      iat?: number;
+      exp?: number;
     }
   }
 }

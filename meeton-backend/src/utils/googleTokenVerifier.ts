@@ -11,7 +11,7 @@ export async function verifyGoogleToken(accessToken: string): Promise<any> {
       throw new AuthenticationError('Invalid Google access token');
     }
     
-    const userData = await response.json();
+    const userData = await response.json() as any;
     
     if (!userData.email) {
       throw new AuthenticationError('Google token does not contain email');

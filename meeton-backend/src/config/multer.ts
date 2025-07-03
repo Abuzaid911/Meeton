@@ -8,7 +8,7 @@ const storage = new CloudinaryStorage({
     folder: 'meeton-event-photos',
     allowed_formats: ['jpg', 'jpeg', 'png'],
     transformation: [{ width: 1200, height: 1200, crop: 'limit' }],
-  },
+  } as any, // Cloudinary types are sometimes incomplete
 });
 
 const upload = multer({ storage });
