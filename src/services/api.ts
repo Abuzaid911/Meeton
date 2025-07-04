@@ -225,6 +225,7 @@ export class APIService {
       
       if (this.refreshToken) {
         console.log('🔑 Refresh token found, attempting to get fresh access token...');
+        console.log('🔑 Refresh token length:', this.refreshToken.length);
         
         // Try to get a fresh access token using the refresh token
         const refreshSuccess = await this.refreshAccessToken();
@@ -303,6 +304,7 @@ export class APIService {
   static async getValidAccessToken(): Promise<string | null> {
     // If we have a valid access token in memory, return it
     if (this.accessToken) {
+      console.log('🔑 Using cached access token');
       return this.accessToken;
     }
     
@@ -312,8 +314,13 @@ export class APIService {
       const refreshSuccess = await this.refreshAccessToken();
       
       if (refreshSuccess && this.accessToken) {
+        console.log('✅ Successfully refreshed access token');
         return this.accessToken;
+      } else {
+        console.log('❌ Failed to refresh access token');
       }
+    } else {
+      console.log('❌ No refresh token available');
     }
     
     console.log('❌ No valid tokens available');
@@ -441,6 +448,7 @@ export class APIService {
   private static async performTokenRefresh(): Promise<boolean> {
     try {
       console.log('🔄 Attempting to refresh access token...');
+      console.log('🔄 Current refresh token available:', !!this.refreshToken);
       
       const response = await this.makeRequest<AuthTokens>('/auth/refresh', {
         method: 'POST',
@@ -1305,10 +1313,13 @@ export class APIService {
       const validToken = await this.getValidAccessToken();
       if (validToken) {
         headers.Authorization = `Bearer ${validToken}`;
+        console.log(`🔐 Making authenticated request to ${endpoint}`);
       } else {
         // No valid token available, this will likely result in 401
-        console.log('⚠️ No valid access token available for authenticated request');
+        console.log(`⚠️ No valid access token available for authenticated request to ${endpoint}`);
       }
+    } else {
+      console.log(`🌐 Making unauthenticated request to ${endpoint}`);
     }
 
     const config: RequestInit = {
@@ -1321,7 +1332,9 @@ export class APIService {
     }
 
     try {
+      console.log(`📡 Sending ${method} request to ${url}`);
       const response = await fetch(url, config);
+      console.log(`📡 Response status: ${response.status} for ${endpoint}`);
       
       // Handle 401 Unauthorized - try to refresh token
       if (response.status === 401 && requireAuth && retryOnTokenRefresh) {
