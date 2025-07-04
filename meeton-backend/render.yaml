@@ -4,13 +4,13 @@ services:
     env: node
     plan: free
     buildCommand: npm install && npm run build
-    startCommand: npm run db:migrate:prod && npm run start
+    startCommand: npx prisma migrate deploy && npm run start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        value: postgresql://meeton:jKYf49AbEPZO0M2SX2z9RcmbEJJAZKIj@dpg-d1j7lh95pdvs73cud15g-a.oregon-postgres.render.com/meeton
+        value: postgresql://meeton:jKYf49AbEPZO0M2SX2z9RcmbEJJAZKIj@dpg-d1j7lh95pdvs73cud15g-a.oregon-postgres.render.com:5432/meeton
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
