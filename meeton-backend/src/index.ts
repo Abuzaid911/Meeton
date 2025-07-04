@@ -18,13 +18,15 @@ import userRoutes from './routes/users';
 import eventRoutes from './routes/events';
 import friendRoutes from './routes/friends';
 import notificationRoutes from './routes/notifications';
+import imageRoutes from './routes/images';
 
 console.log('🔥 Routes imported:', { 
   authRoutes: !!authRoutes, 
   userRoutes: !!userRoutes, 
   eventRoutes: !!eventRoutes, 
   friendRoutes: !!friendRoutes,
-  notificationRoutes: !!notificationRoutes
+  notificationRoutes: !!notificationRoutes,
+  imageRoutes: !!imageRoutes
 });
 
 // Load environment variables
@@ -114,6 +116,7 @@ app.use('/api/events', (req, res, next) => {
 }, eventRoutes);
 app.use('/api/friends', friendRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/images', imageRoutes);
 
 // API documentation endpoint
 app.get('/api', (req, res) => {
@@ -127,6 +130,7 @@ app.get('/api', (req, res) => {
       events: '/api/events',
       friends: '/api/friends',
       notifications: '/api/notifications',
+      images: '/api/images',
     },
   });
 });

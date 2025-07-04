@@ -302,8 +302,18 @@ export const getUsersSchema = paginationSchema.extend({
 // ============================================================================
 
 export const uploadImageSchema = z.object({
-  type: z.enum(['profile', 'event', 'photo']),
-  file: z.any(), // Will be validated by multer middleware
+  caption: z.string().max(500, 'Caption must be less than 500 characters').optional(),
+});
+
+export const imageParamsSchema = z.object({
+  eventId: z.string().cuid('Invalid event ID').optional(),
+  photoId: z.string().cuid('Invalid photo ID').optional(),
+  publicId: z.string().min(1, 'Public ID is required').optional(),
+});
+
+export const imageQuerySchema = z.object({
+  page: z.string().regex(/^\d+$/).transform(Number).optional(),
+  limit: z.string().regex(/^\d+$/).transform(Number).optional(),
 });
 
 // ============================================================================
@@ -347,3 +357,6 @@ export type RespondToFriendRequestInput = z.infer<typeof respondToFriendRequestS
 export type CreateCommentInput = z.infer<typeof createCommentSchema>;
 export type PaginationInput = z.infer<typeof paginationSchema>;
 export type SearchEventsInput = z.infer<typeof searchEventsSchema>; 
+export type UploadImageInput = z.infer<typeof uploadImageSchema>;
+export type ImageParamsInput = z.infer<typeof imageParamsSchema>;
+export type ImageQueryInput = z.infer<typeof imageQuerySchema>; 
