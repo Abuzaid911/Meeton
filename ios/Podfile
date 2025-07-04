@@ -11,13 +11,16 @@ platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
 install! 'cocoapods',
   :deterministic_uuids => false
 
-# Enable modular headers for Firebase compatibility
-use_modular_headers!
-
 prepare_react_native_project!
 
 target 'MeetOn' do
   use_expo_modules!
+  
+  # Enable modular headers for Firebase dependencies
+  pod 'GoogleUtilities', :modular_headers => true
+  pod 'FirebaseCore', :modular_headers => true
+  pod 'FirebaseCoreInternal', :modular_headers => true
+  pod 'FirebaseMessaging', :modular_headers => true
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
@@ -60,6 +63,16 @@ target 'MeetOn' do
       target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
         resource_bundle_target.build_configurations.each do |config|
           config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+        end
+      end
+    end
+
+    # Fix Firebase pods by enabling modular headers for specific pods
+    installer.pods_project.targets.each do |target|
+      if ['GoogleUtilities', 'FirebaseCore', 'FirebaseCoreInternal', 'FirebaseMessaging'].include?(target.name)
+        target.build_configurations.each do |config|
+          config.build_settings['DEFINES_MODULE'] = 'YES'
+          config.build_settings['SWIFT_INCLUDE_PATHS'] = ['$(inherited)', '$(PODS_TARGET_SRCROOT)']
         end
       end
     end
