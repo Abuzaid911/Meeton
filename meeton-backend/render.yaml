@@ -10,13 +10,27 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: meeton-db
-          property: connectionString
+        value: postgresql://meeton:jKYf49AbEPZO0M2SX2z9RcmbEJJAZKIj@dpg-d1j7lh95pdvs73cud15g-a.oregon-postgres.render.com/meeton
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      - key: FIREBASE_PROJECT_ID
+        value: meeton-9a49c
+      - key: FIREBASE_SERVICE_ACCOUNT_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: REDIS_URL
+        sync: false
 
 databases:
   - name: meeton-db
