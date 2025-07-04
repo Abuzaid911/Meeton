@@ -1,5 +1,34 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from '../config/api';
+
+/**
+ * ============================================================================
+ * MeetOn Token Management System
+ * ============================================================================
+ * 
+ * Token Configuration:
+ * • Access Token (JWT): 30 minutes, stored in memory only for security
+ * • Refresh Token: 14 days, stored in SecureStore for persistence
+ * 
+ * App Launch Flow:
+ * 1. Check if refresh token exists in SecureStore
+ * 2. If yes, attempt to get fresh access token using refresh token
+ * 3. If refresh fails, clear all tokens (user needs to re-authenticate)
+ * 4. If no refresh token, user needs to authenticate
+ * 
+ * Security Benefits:
+ * • Access tokens never persisted to disk (memory only)
+ * • Refresh tokens encrypted in SecureStore (iOS Keychain/Android Keystore)
+ * • Automatic token refresh with 30min access token expiry
+ * • Session expiry handling with user-friendly messages
+ * 
+ * Usage:
+ * • APIService.initialize() - Call on app launch
+ * • APIService.isAuthenticated() - Check if user has valid tokens
+ * • APIService.getCurrentUser() - Get current user (auto-refreshes if needed)
+ * ============================================================================
+ */
 
 // ============================================================================
 // Session Management Event System (React Native Compatible)
@@ -76,6 +105,16 @@ interface EnhancedAPIResponse<T> extends APIResponse<T> {
   sessionExpired?: boolean;
   requiresLogin?: boolean;
 }
+
+// Token storage keys
+const SECURE_STORE_KEYS = {
+  REFRESH_TOKEN: 'auth_refresh_token',
+  USER_DATA: 'auth_user_data', // Also store user data securely
+} as const;
+
+const ASYNC_STORAGE_KEYS = {
+  USER_DATA_CACHE: '@auth_user_cache', // Cache for offline access
+} as const;
 
 interface UserProfile {
   id: string;
@@ -155,16 +194,150 @@ interface Event {
 /**
  * API Service for MeetOn Backend Communication
  * Handles authentication, token management, and API calls
+ * 
+ * Token Storage Strategy:
+ * - Access Token (30min): Stored in memory for security
+ * - Refresh Token (14 days): Stored in SecureStore for persistence
+ * - User Data: Cached in AsyncStorage for offline access, secured in SecureStore
  */
 export class APIService {
-  private static accessToken: string | null = null;
-  private static refreshToken: string | null = null;
+  private static accessToken: string | null = null; // Memory storage for access token
+  private static refreshToken: string | null = null; // Memory cache of refresh token
   private static isRefreshing: boolean = false;
   private static refreshPromise: Promise<boolean> | null = null;
 
   // ============================================================================
-  // Session Management Methods
+  // Enhanced Token Management Methods
   // ============================================================================
+
+  /**
+   * Initialize tokens from secure storage on app launch
+   */
+  static async initialize(): Promise<void> {
+    try {
+      console.log('🔐 Initializing API service with secure token storage...');
+      
+      // Access token is not persisted (30min expiry, memory only)
+      this.accessToken = null;
+      
+      // Load refresh token from SecureStore
+      this.refreshToken = await SecureStore.getItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);
+      
+      if (this.refreshToken) {
+        console.log('🔑 Refresh token found, attempting to get fresh access token...');
+        
+        // Try to get a fresh access token using the refresh token
+        const refreshSuccess = await this.refreshAccessToken();
+        
+        if (!refreshSuccess) {
+          console.log('❌ Failed to refresh access token, clearing stored tokens');
+          await this.clearTokens();
+        } else {
+          console.log('✅ Access token refreshed successfully on app launch');
+        }
+      } else {
+        console.log('🔍 No refresh token found, user needs to authenticate');
+      }
+    } catch (error) {
+      console.error('❌ Failed to initialize API service:', error);
+      await this.clearTokens();
+    }
+  }
+
+  /**
+   * Store authentication tokens with proper security
+   * Access token: Memory only (30min)
+   * Refresh token: SecureStore (14 days)
+   */
+  static async storeTokens(tokens: AuthTokens): Promise<void> {
+    try {
+      console.log('🔐 Storing tokens securely...');
+      
+      // Store access token in memory only
+      this.accessToken = tokens.accessToken;
+      
+      // Store refresh token in SecureStore
+      await SecureStore.setItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN, tokens.refreshToken);
+      this.refreshToken = tokens.refreshToken;
+      
+      console.log('✅ Tokens stored successfully');
+    } catch (error) {
+      console.error('❌ Failed to store tokens:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear all authentication tokens
+   */
+  static async clearTokens(): Promise<void> {
+    try {
+      console.log('🧹 Clearing all tokens...');
+      
+      // Clear memory storage
+      this.accessToken = null;
+      this.refreshToken = null;
+      
+      // Clear SecureStore
+      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);
+      
+      // Clear user data cache
+      await AsyncStorage.removeItem(ASYNC_STORAGE_KEYS.USER_DATA_CACHE);
+      
+      console.log('✅ All tokens cleared');
+    } catch (error) {
+      console.error('❌ Failed to clear tokens:', error);
+    }
+  }
+
+  /**
+   * Check if user is authenticated (has valid access token or refresh token)
+   */
+  static isAuthenticated(): boolean {
+    return !!(this.accessToken || this.refreshToken);
+  }
+
+  /**
+   * Get access token, refresh if needed
+   */
+  static async getValidAccessToken(): Promise<string | null> {
+    // If we have a valid access token in memory, return it
+    if (this.accessToken) {
+      return this.accessToken;
+    }
+    
+    // If we have a refresh token, try to get a new access token
+    if (this.refreshToken) {
+      console.log('🔄 Access token not found, attempting refresh...');
+      const refreshSuccess = await this.refreshAccessToken();
+      
+      if (refreshSuccess && this.accessToken) {
+        return this.accessToken;
+      }
+    }
+    
+    console.log('❌ No valid tokens available');
+    return null;
+  }
+
+  /**
+   * Get current user profile
+   */
+  static async getCurrentUser(): Promise<UserProfile | null> {
+    try {
+      const response = await this.makeRequest<UserProfile>('/auth/me', {
+        requireAuth: true,
+      });
+
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to get current user:', error);
+      return null;
+    }
+  }
 
   /**
    * Handle session expiry - clear tokens and emit event
@@ -233,65 +406,6 @@ export class APIService {
   // ============================================================================
   // Token Management Methods
   // ============================================================================
-
-  /**
-   * Initialize tokens from storage
-   */
-  static async initialize(): Promise<void> {
-    try {
-      this.accessToken = await AsyncStorage.getItem('@auth_access_token');
-      this.refreshToken = await AsyncStorage.getItem('@auth_refresh_token');
-    } catch (error) {
-      console.error('Failed to initialize API service:', error);
-    }
-  }
-
-  /**
-   * Store authentication tokens
-   */
-  static async storeTokens(tokens: AuthTokens): Promise<void> {
-    try {
-      await AsyncStorage.setItem('@auth_access_token', tokens.accessToken);
-      await AsyncStorage.setItem('@auth_refresh_token', tokens.refreshToken);
-      this.accessToken = tokens.accessToken;
-      this.refreshToken = tokens.refreshToken;
-    } catch (error) {
-      console.error('Failed to store tokens:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Clear authentication tokens
-   */
-  static async clearTokens(): Promise<void> {
-    try {
-      await AsyncStorage.multiRemove(['@auth_access_token', '@auth_refresh_token']);
-      this.accessToken = null;
-      this.refreshToken = null;
-    } catch (error) {
-      console.error('Failed to clear tokens:', error);
-    }
-  }
-
-  /**
-   * Get current user profile
-   */
-  static async getCurrentUser(): Promise<UserProfile | null> {
-    try {
-      const response = await this.makeRequest<UserProfile>('/auth/me', {
-        requireAuth: true,
-      });
-
-      if (response.success && response.data) {
-        return response.data;
-      }
-      return null;
-    } catch (error) {
-      console.error('Failed to get current user:', error);
-      return null;
-    }
-  }
 
   /**
    * Refresh access token with concurrent request protection
@@ -873,63 +987,28 @@ export class APIService {
 
   /**
    * Get user profile by ID
-   * Temporary workaround: Extract user from events data
    */
   static async getUserProfile(userId: string): Promise<UserProfile | null> {
     try {
-      // Get events data which includes user information
-      const response = await this.makeRequest<Event[]>('/events', {
-        requireAuth: false,
+      const response = await this.makeRequest<UserProfile>(`/users/${userId}`, {
+        requireAuth: true,
+        action: 'get user profile'
       });
 
       if (response.success && response.data) {
-        // Look for the user in hosts and attendees
-        let foundUser: UserProfile | null = null;
-        
-        for (const event of response.data) {
-          // Check if user is the host
-          if (event.host && event.host.id === userId) {
-            foundUser = {
-              id: event.host.id,
-              name: event.host.name || '',
-              username: event.host.username || '',
-              email: '', // Not available in events data
-              image: event.host.image || undefined,
-              bio: undefined, // Not available in events data
-              location: undefined, // Not available in events data
-              interests: [],
-              onboardingCompleted: true,
-              emailVerified: undefined,
-              createdAt: new Date().toISOString(),
-            };
-            break;
-          }
-          
-          // Check if user is an attendee
-          const attendee = event.attendees?.find(a => a.user.id === userId);
-          if (attendee && attendee.user) {
-            foundUser = {
-              id: attendee.user.id,
-              name: attendee.user.name || '',
-              username: attendee.user.username || '',
-              email: '', // Not available in events data
-              image: attendee.user.image || undefined,
-              bio: undefined, // Not available in events data
-              location: undefined, // Not available in events data
-              interests: [],
-              onboardingCompleted: true,
-              emailVerified: undefined,
-              createdAt: new Date().toISOString(),
-            };
-            break;
-          }
-        }
-        
-        return foundUser;
+        return response.data;
       }
       return null;
     } catch (error) {
       console.error('Failed to get user profile:', error);
+      
+      if (this.isSessionExpiredError(error)) {
+        const sessionError = new Error(this.getUserFriendlyErrorMessage(error, 'get user profile'));
+        (sessionError as any).isSessionExpired = true;
+        (sessionError as any).code = 'SESSION_EXPIRED';
+        throw sessionError;
+      }
+      
       return null;
     }
   }
@@ -1078,13 +1157,130 @@ export class APIService {
     }
   }
 
+  // ============================================================================
+  // Notification API Methods
+  // ============================================================================
+
+  /**
+   * Get user notifications with pagination
+   */
+  static async getNotifications(options: {
+    page?: number;
+    limit?: number;
+    unreadOnly?: boolean;
+  } = {}): Promise<{
+    notifications: any[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  } | null> {
+    try {
+      const queryParams = new URLSearchParams({
+        page: String(options.page || 1),
+        limit: String(options.limit || 20),
+        unreadOnly: String(options.unreadOnly || false),
+      });
+
+      const response = await this.makeRequest<any>(`/notifications?${queryParams}`, {
+        requireAuth: true,
+      });
+
+      if (response.success && response.data && (response as any).pagination) {
+        return {
+          notifications: response.data,
+          pagination: (response as any).pagination,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to get notifications:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Mark notification as read
+   */
+  static async markNotificationAsRead(notificationId: string): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<any>(`/notifications/${notificationId}/read`, {
+        method: 'PATCH',
+        requireAuth: true,
+      });
+
+      return response.success;
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Mark all notifications as read
+   */
+  static async markAllNotificationsAsRead(): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<any>('/notifications/read-all', {
+        method: 'PATCH',
+        requireAuth: true,
+      });
+
+      return response.success;
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete notification
+   */
+  static async deleteNotification(notificationId: string): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<any>(`/notifications/${notificationId}`, {
+        method: 'DELETE',
+        requireAuth: true,
+      });
+
+      return response.success;
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Update notification settings
+   */
+  static async updateNotificationSettings(settings: {
+    pushNotifications?: boolean;
+    emailNotifications?: boolean;
+    smsNotifications?: boolean;
+  }): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<any>('/notifications/settings', {
+        method: 'PATCH',
+        body: settings,
+        requireAuth: true,
+      });
+
+      return response.success;
+    } catch (error) {
+      console.error('Failed to update notification settings:', error);
+      return false;
+    }
+  }
+
   /**
    * Make HTTP request to backend API with enhanced session management
    */
   private static async makeRequest<T>(
     endpoint: string,
     options: {
-      method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+      method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
       body?: any;
       requireAuth?: boolean;
       retryOnTokenRefresh?: boolean;
@@ -1105,8 +1301,14 @@ export class APIService {
     };
 
     // Add authorization header if required
-    if (requireAuth && this.accessToken) {
-      headers.Authorization = `Bearer ${this.accessToken}`;
+    if (requireAuth) {
+      const validToken = await this.getValidAccessToken();
+      if (validToken) {
+        headers.Authorization = `Bearer ${validToken}`;
+      } else {
+        // No valid token available, this will likely result in 401
+        console.log('⚠️ No valid access token available for authenticated request');
+      }
     }
 
     const config: RequestInit = {

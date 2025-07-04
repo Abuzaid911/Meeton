@@ -6,10 +6,10 @@ import { getEnv } from '../config/env';
  * Rate limiting configuration as per implementation rules
  */
 
-// Authentication endpoints - strict limiting
+// Authentication endpoints - more lenient during development
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per window
+  max: process.env.NODE_ENV === 'development' ? 50 : 10, // More lenient in development
   message: {
     success: false,
     error: {
@@ -47,6 +47,54 @@ export const passwordResetLimiter = rateLimit({
   keyGenerator: (req: Request) => {
     // Rate limit by email for password reset
     return req.body?.email || req.ip || 'unknown';
+  },
+});
+
+// OAuth endpoints - lenient limiting for development
+export const oauthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'development' ? 100 : 20, // Very lenient in development
+  message: {
+    success: false,
+    error: {
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Too many OAuth attempts. Please try again later.',
+      statusCode: 429,
+    },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    // Rate limit by IP address for OAuth
+    return req.ip || 'unknown';
+  },
+  skip: (req: Request) => {
+    // Skip rate limiting in test environment
+    return process.env.NODE_ENV === 'test';
+  },
+});
+
+// Token refresh endpoints - lenient limiting for development
+export const tokenRefreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'development' ? 200 : 50, // Very lenient in development
+  message: {
+    success: false,
+    error: {
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Too many token refresh attempts. Please try again later.',
+      statusCode: 429,
+    },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    // Rate limit by IP address for token refresh
+    return req.ip || 'unknown';
+  },
+  skip: (req: Request) => {
+    // Skip rate limiting in test environment
+    return process.env.NODE_ENV === 'test';
   },
 });
 

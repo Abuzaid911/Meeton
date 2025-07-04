@@ -7,8 +7,8 @@ const envSchema = z.object({
   // JWT
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters'),
-  JWT_ACCESS_EXPIRY: z.string().default('15m'),
-  JWT_REFRESH_EXPIRY: z.string().default('7d'),
+  JWT_ACCESS_EXPIRY: z.string().default('30m'),
+  JWT_REFRESH_EXPIRY: z.string().default('14d'),
   
   // Session
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
@@ -40,6 +40,10 @@ const envSchema = z.object({
   
   // Push Notifications (optional)
   FCM_SERVER_KEY: z.string().optional(),
+  
+  // Firebase (for push notifications)
+  FIREBASE_PROJECT_ID: z.string().optional(),
+  FIREBASE_SERVICE_ACCOUNT_KEY: z.string().optional(),
   
   // Social Auth (Google OAuth required for login)
   GOOGLE_CLIENT_ID: z.string().min(1, 'Google Client ID is required'),

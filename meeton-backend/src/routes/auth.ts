@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { authController } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
 import { validateRequest, validateBody } from '../middleware/validation';
-import { authLimiter, passwordResetLimiter } from '../middleware/rateLimit';
+import { authLimiter, passwordResetLimiter, oauthLimiter, tokenRefreshLimiter } from '../middleware/rateLimit';
 import {
   registerSchema,
   loginSchema,
@@ -30,7 +30,7 @@ const router = Router();
  */
 router.get(
   '/google',
-  authLimiter,
+  oauthLimiter,
   passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
@@ -40,7 +40,7 @@ router.get(
  */
 router.get(
   '/google/callback',
-  authLimiter,
+  oauthLimiter,
   passport.authenticate('google', { failureRedirect: '/auth/error' }),
   authController.googleCallback
 );
@@ -51,7 +51,7 @@ router.get(
  */
 router.post(
   '/google/mobile',
-  authLimiter,
+  oauthLimiter,
   validateBody(z.object({
     accessToken: z.string().min(1, 'Google access token is required')
   })),
@@ -66,7 +66,7 @@ router.post(
  * Get current user information
  * GET /api/auth/me
  */
-router.get('/me', authenticate, authController.getMe);
+router.get('/me', tokenRefreshLimiter, authenticate, authController.getMe);
 
 /**
  * Refresh access token
@@ -74,7 +74,7 @@ router.get('/me', authenticate, authController.getMe);
  */
 router.post(
   '/refresh',
-  authLimiter,
+  tokenRefreshLimiter,
   validateBody(refreshTokenSchema),
   authController.refreshToken
 );

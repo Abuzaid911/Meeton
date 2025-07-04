@@ -11,13 +11,14 @@ import {
   Dimensions,
   Platform,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../constants';
-import { currentUser } from '../../services/mockData';
 import { useAuth } from '../../contexts/AuthContext';
 import APIService from '../../services/api';
 
@@ -28,6 +29,7 @@ interface StatItem {
   label: string;
   value: string;
   color: string;
+  onPress?: () => void;
 }
 
 interface MenuSection {
@@ -42,6 +44,7 @@ interface MenuItem {
   onPress: () => void;
   showChevron?: boolean;
   isDestructive?: boolean;
+  badge?: number;
 }
 
 interface ProfileScreenProps {
@@ -52,14 +55,26 @@ type RouteParams = {
   userId?: string;
 };
 
+interface UserStats {
+  eventsHosted: number;
+  eventsAttended: number;
+  friendsCount: number;
+}
+
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { signOut, user } = useAuth();
   const route = useRoute();
   const { userId } = (route.params as RouteParams) || {};
   
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [profileUser, setProfileUser] = useState(user || currentUser);
+  const [profileUser, setProfileUser] = useState(user);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userStats, setUserStats] = useState<UserStats>({
+    eventsHosted: 0,
+    eventsAttended: 0,
+    friendsCount: 0
+  });
   const [friendshipStatus, setFriendshipStatus] = useState<{
     status: 'NONE' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'FRIENDS';
     requestId?: string;
@@ -73,27 +88,52 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   // Check if viewing own profile or someone else's
   const isOwnProfile = !userId || userId === user?.id;
 
-
-
   useEffect(() => {
-    if (userId && userId !== user?.id) {
-      loadUserProfile();
-      loadFriendshipStatus();
-    } else {
-      // Viewing own profile
-      setProfileUser(user || currentUser);
-      loadFriendsData();
-    }
+    loadProfileData();
   }, [userId, user?.id]);
 
-  // Refresh friends data when returning to profile screen
+  // Refresh data when returning to profile screen
   useFocusEffect(
     React.useCallback(() => {
       if (isOwnProfile) {
         loadFriendsData();
+        loadUserStats();
       }
     }, [isOwnProfile])
   );
+
+  const loadProfileData = async () => {
+    if (userId && userId !== user?.id) {
+      await Promise.all([
+        loadUserProfile(),
+        loadFriendshipStatus()
+      ]);
+    } else {
+      // Viewing own profile
+      setProfileUser(user);
+      await Promise.all([
+        loadFriendsData(),
+        loadUserStats()
+      ]);
+    }
+  };
+
+  const loadUserStats = async () => {
+    if (!isOwnProfile || !user?.id) return;
+
+    try {
+      const userEvents = await APIService.getUserEvents(user.id);
+      if (userEvents) {
+        setUserStats({
+          eventsHosted: userEvents.hosting.length,
+          eventsAttended: userEvents.attending.length,
+          friendsCount: friendsData.friends.length
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load user stats:', error);
+    }
+  };
 
   const loadFriendsData = async () => {
     if (!isOwnProfile) return;
@@ -105,11 +145,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         APIService.getSuggestedFriends()
       ]);
 
-      setFriendsData({
-        friends,
-        requests,
-        suggested
-      });
+      const friendsData = {
+        friends: friends || [],
+        requests: requests || { sent: [], received: [] },
+        suggested: suggested || []
+      };
+
+      setFriendsData(friendsData);
+      
+      // Update friends count in stats
+      setUserStats(prev => ({
+        ...prev,
+        friendsCount: friendsData.friends.length
+      }));
     } catch (error) {
       console.error('Failed to load friends data:', error);
     }
@@ -120,10 +168,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     
     setLoading(true);
     try {
-             const userProfile = await APIService.getUserProfile(userId);
-       if (userProfile) {
-         setProfileUser(userProfile as any);
-       }
+      const userProfile = await APIService.getUserProfile(userId);
+      if (userProfile) {
+        setProfileUser(userProfile as any);
+      }
     } catch (error) {
       console.error('Failed to load user profile:', error);
       Alert.alert('Error', 'Failed to load user profile');
@@ -143,13 +191,24 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadProfileData();
+    } catch (error) {
+      console.error('Failed to refresh profile:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleSendFriendRequest = async () => {
     if (!userId) return;
     
     try {
       const result = await APIService.sendFriendRequest(userId);
       if (result.success) {
-        Alert.alert('Success', `Friend request sent to ${profileUser.name}!`);
+        Alert.alert('Success', `Friend request sent to ${profileUser?.name}!`);
         setFriendshipStatus({ status: 'PENDING_SENT' });
       } else {
         Alert.alert('Error', result.error || 'Failed to send friend request');
@@ -194,6 +253,36 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
+  const handleRemoveFriend = async () => {
+    if (!userId) return;
+    
+    Alert.alert(
+      'Remove Friend',
+      `Are you sure you want to remove ${profileUser?.name} from your friends?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const success = await APIService.removeFriend(userId);
+              if (success) {
+                Alert.alert('Success', 'Friend removed successfully');
+                setFriendshipStatus({ status: 'NONE' });
+              } else {
+                Alert.alert('Error', 'Failed to remove friend');
+              }
+            } catch (error) {
+              console.error('Error removing friend:', error);
+              Alert.alert('Error', 'Failed to remove friend');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const getFriendButtonConfig = () => {
     if (!friendshipStatus) {
       return {
@@ -207,7 +296,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       case 'FRIENDS':
         return {
           title: 'Friends ✓',
-          onPress: () => {},
+          onPress: handleRemoveFriend,
           style: 'success'
         };
       case 'PENDING_SENT':
@@ -232,29 +321,53 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
-  // Stats data (using real friends count for own profile)
+  const handleViewMyEvents = () => {
+    navigation.navigate('EventList', { 
+      filter: 'my-events',
+      title: 'My Events'
+    });
+  };
+
+  const handleViewHostedEvents = () => {
+    navigation.navigate('EventList', { 
+      filter: 'hosted',
+      title: 'Events I\'m Hosting'
+    });
+  };
+
+  const handleViewAttendingEvents = () => {
+    navigation.navigate('EventList', { 
+      filter: 'attending',
+      title: 'Events I\'m Attending'
+    });
+  };
+
+  // Stats data with real numbers and navigation
   const stats: StatItem[] = [
     {
-      icon: 'star',
+      icon: 'calendar',
       label: 'Events Hosted',
-      value: '12',
+      value: String(userStats.eventsHosted),
       color: Colors.primary,
+      onPress: handleViewHostedEvents,
     },
     {
-      icon: 'calendar',
+      icon: 'checkmark-circle',
       label: 'Events Attended',
-      value: '34',
+      value: String(userStats.eventsAttended),
       color: Colors.secondary,
+      onPress: handleViewAttendingEvents,
     },
     {
       icon: 'people',
       label: 'Friends',
-      value: isOwnProfile ? String(friendsData.friends.length) : '158',
+      value: String(userStats.friendsCount),
       color: Colors.systemGreen,
+      onPress: () => navigation.navigate('Friends', { tab: 'friends' }),
     },
   ];
 
-  // Menu sections (removed Support section)
+  // Menu sections with real data counts and badges
   const menuSections: MenuSection[] = [
     {
       title: 'Friends',
@@ -272,6 +385,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           subtitle: `${friendsData.requests.received.length} pending requests`,
           onPress: () => navigation.navigate('Friends', { tab: 'requests' }),
           showChevron: true,
+          badge: friendsData.requests.received.length > 0 ? friendsData.requests.received.length : undefined,
         },
         {
           icon: 'people-outline',
@@ -285,6 +399,33 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           label: 'Sent Requests',
           subtitle: `${friendsData.requests.sent.length} pending`,
           onPress: () => navigation.navigate('Friends', { tab: 'sent' }),
+          showChevron: true,
+          badge: friendsData.requests.sent.length > 0 ? friendsData.requests.sent.length : undefined,
+        },
+      ],
+    },
+    {
+      title: 'Events',
+      items: [
+        {
+          icon: 'calendar-outline',
+          label: 'My Events',
+          subtitle: 'All events (hosting & attending)',
+          onPress: handleViewMyEvents,
+          showChevron: true,
+        },
+        {
+          icon: 'star-outline',
+          label: 'Hosting',
+          subtitle: `${userStats.eventsHosted} events you're hosting`,
+          onPress: handleViewHostedEvents,
+          showChevron: true,
+        },
+        {
+          icon: 'checkmark-circle-outline',
+          label: 'Attending',
+          subtitle: `${userStats.eventsAttended} events you're attending`,
+          onPress: handleViewAttendingEvents,
           showChevron: true,
         },
       ],
@@ -303,7 +444,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           icon: 'shield-checkmark-outline',
           label: 'Privacy & Security',
           subtitle: 'Manage your account security',
-          onPress: () => console.log('Privacy'),
+          onPress: () => Alert.alert('Coming Soon', 'Privacy & Security settings will be available soon.'),
           showChevron: true,
         },
         {
@@ -312,32 +453,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           subtitle: 'Push notifications and alerts',
           onPress: () => setNotificationsEnabled(!notificationsEnabled),
           showChevron: false,
-        },
-      ],
-    },
-    {
-      title: 'Events',
-      items: [
-        {
-          icon: 'calendar-outline',
-          label: 'My Events',
-          subtitle: 'Events you\'ve created',
-          onPress: () => console.log('My Events'),
-          showChevron: true,
-        },
-        {
-          icon: 'bookmark-outline',
-          label: 'Saved Events',
-          subtitle: 'Events you\'ve bookmarked',
-          onPress: () => console.log('Saved Events'),
-          showChevron: true,
-        },
-        {
-          icon: 'time-outline',
-          label: 'Event History',
-          subtitle: 'Past events you attended',
-          onPress: () => console.log('Event History'),
-          showChevron: true,
         },
       ],
     },
@@ -356,7 +471,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   ];
 
   const StatCard: React.FC<{ stat: StatItem; index: number }> = ({ stat, index }) => (
-    <TouchableOpacity style={styles.statCard} activeOpacity={0.8}>
+    <TouchableOpacity 
+      style={styles.statCard} 
+      activeOpacity={stat.onPress ? 0.8 : 1}
+      onPress={stat.onPress}
+    >
       <BlurView intensity={80} style={styles.statBlur}>
         <View style={styles.statContent}>
           <View style={[styles.statIconContainer, { backgroundColor: stat.color }]}>
@@ -364,6 +483,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </View>
           <Text style={styles.statValue}>{stat.value}</Text>
           <Text style={styles.statLabel}>{stat.label}</Text>
+          {stat.onPress && (
+            <View style={styles.statTapIndicator}>
+              <Ionicons name="chevron-forward" size={12} color="rgba(255, 255, 255, 0.5)" />
+            </View>
+          )}
         </View>
       </BlurView>
     </TouchableOpacity>
@@ -389,6 +513,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         </View>
       </View>
       <View style={styles.menuItemRight}>
+        {item.badge && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{item.badge}</Text>
+          </View>
+        )}
         {item.label === 'Notifications' && (
           <View style={[styles.toggle, notificationsEnabled && styles.toggleActive]}>
             <View style={[styles.toggleThumb, notificationsEnabled && styles.toggleThumbActive]} />
@@ -417,6 +546,18 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     </View>
   );
 
+  if (loading && !profileUser) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -438,6 +579,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         style={styles.scrollView}
         contentContainerStyle={[styles.scrollContent, !isOwnProfile && { paddingTop: 20 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.white}
+            titleColor={Colors.white}
+          />
+        }
       >
         {/* Profile Header */}
         <View style={styles.profileHeader}>
@@ -448,19 +597,35 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             >
               <View style={styles.profileInfo}>
                 <View style={styles.avatarContainer}>
-                  <Image source={{ uri: profileUser.image }} style={styles.avatar} />
+                  <Image 
+                    source={{ 
+                      uri: profileUser?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileUser?.name || 'User')}&background=667eea&color=fff&size=150`
+                    }} 
+                    style={styles.avatar} 
+                  />
                   <View style={styles.avatarRing} />
-                  <TouchableOpacity style={styles.editAvatarButton}>
-                    <BlurView intensity={100} style={styles.editAvatarBlur}>
-                      <Ionicons name="camera" size={16} color={Colors.white} />
-                    </BlurView>
-                  </TouchableOpacity>
+                  {isOwnProfile && (
+                    <TouchableOpacity 
+                      style={styles.editAvatarButton}
+                      onPress={() => Alert.alert('Coming Soon', 'Photo editing will be available soon.')}
+                    >
+                      <BlurView intensity={100} style={styles.editAvatarBlur}>
+                        <Ionicons name="camera" size={16} color={Colors.white} />
+                      </BlurView>
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <Text style={styles.userName}>{profileUser.name}</Text>
-                <Text style={styles.userEmail}>{profileUser.email}</Text>
+                <Text style={styles.userName}>{profileUser?.name || 'User'}</Text>
+                <Text style={styles.userEmail}>{profileUser?.email}</Text>
                 <Text style={styles.userBio}>
-                  {profileUser.bio || 'Event enthusiast • Chicago, IL'}
+                  {profileUser?.bio || (isOwnProfile ? 'Add a bio to tell others about yourself' : 'No bio available')}
                 </Text>
+                {profileUser?.location && (
+                  <Text style={styles.userLocation}>
+                    <Ionicons name="location-outline" size={14} color="rgba(255, 255, 255, 0.7)" />
+                    {' '}{profileUser.location}
+                  </Text>
+                )}
                 
                 {isOwnProfile ? (
                   <TouchableOpacity 
@@ -500,20 +665,28 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                         <TouchableOpacity 
                           style={[
                             styles.friendshipButton,
-                            getFriendButtonConfig().style === 'success' ? styles.friendshipButtonSuccess :
-                            getFriendButtonConfig().style === 'secondary' ? styles.friendshipButtonSecondary :
-                            styles.friendshipButtonPrimary
+                            friendshipStatus?.status === 'FRIENDS' 
+                              ? styles.friendshipButtonSuccess
+                              : friendshipStatus?.status === 'PENDING_SENT'
+                              ? styles.friendshipButtonSecondary
+                              : styles.friendshipButtonPrimary
                           ]}
                           onPress={getFriendButtonConfig().onPress}
+                          disabled={friendshipStatus?.status === 'PENDING_SENT'}
                         >
                           <BlurView intensity={80} style={styles.friendshipButtonBlur}>
-                            <Text style={styles.friendshipButtonText}>{getFriendButtonConfig().title}</Text>
+                            <Text style={styles.friendshipButtonText}>
+                              {getFriendButtonConfig().title}
+                            </Text>
                           </BlurView>
                         </TouchableOpacity>
                         
-                        <TouchableOpacity style={styles.messageButton}>
+                        <TouchableOpacity 
+                          style={styles.messageButton}
+                          onPress={() => Alert.alert('Coming Soon', 'Messaging will be available soon.')}
+                        >
                           <BlurView intensity={80} style={styles.messageButtonBlur}>
-                            <Ionicons name="chatbubble" size={20} color={Colors.white} />
+                            <Ionicons name="chatbubble-outline" size={20} color={Colors.white} />
                           </BlurView>
                         </TouchableOpacity>
                       </>
@@ -525,14 +698,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </BlurView>
         </View>
 
-        {/* Stats Grid */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statsGrid}>
-            {stats.map((stat, index) => (
-              <StatCard key={index} stat={stat} index={index} />
-            ))}
+        {/* Stats Section - Only show for own profile */}
+        {isOwnProfile && (
+          <View style={styles.statsSection}>
+            <View style={styles.statsContainer}>
+              {stats.map((stat, index) => (
+                <StatCard key={index} stat={stat} index={index} />
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Menu Sections - Only show for own profile */}
         {isOwnProfile && (
@@ -629,6 +804,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: Spacing.lg,
   },
+  userLocation: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: Spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   editProfileButton: {
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
@@ -645,11 +827,11 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.semibold,
     textAlign: 'center',
   },
-  statsContainer: {
+  statsSection: {
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
   },
-  statsGrid: {
+  statsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
@@ -691,6 +873,14 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
+  },
+  statTapIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 10,
+    padding: 2,
   },
   menuContainer: {
     paddingHorizontal: Spacing.lg,
@@ -859,6 +1049,33 @@ const styles = StyleSheet.create({
   },
   declineButton: {
     backgroundColor: 'rgba(255, 59, 48, 0.2)',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.black,
+  },
+  loadingText: {
+    color: Colors.white,
+    marginTop: Spacing.sm,
+  },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: Colors.systemRed,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+  },
+  badgeText: {
+    color: Colors.white,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
   },
 });
 

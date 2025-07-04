@@ -1,4 +1,4 @@
-package com.meeton.app
+package com.meeton
 
 import android.app.Application
 import android.content.res.Configuration

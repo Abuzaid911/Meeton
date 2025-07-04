@@ -4,6 +4,7 @@ import { Alert } from 'react-native';
 import { User } from '../types';
 import APIService, { sessionEvents, SESSION_EVENTS } from '../services/api';
 import GoogleAuthService from '../services/googleAuth';
+import { notificationService } from '../services/notificationService';
 
 interface AuthContextType {
   user: User | null;
@@ -198,6 +199,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           await AsyncStorage.setItem('@auth_user', JSON.stringify(user));
           setUser(user);
           
+          // Initialize notification service for authenticated user
+          try {
+            await notificationService.initialize();
+            console.log('📱 Notification service initialized');
+          } catch (error) {
+            console.error('Failed to initialize notification service:', error);
+            // Don't fail login if notifications fail
+          }
+          
           console.log('User set successfully:', { 
             id: user.id, 
             email: user.email, 
@@ -228,6 +238,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             // Store user locally for offline access
             await AsyncStorage.setItem('@auth_user', JSON.stringify(user));
             setUser(user);
+            
+            // Initialize notification service for authenticated user
+            try {
+              await notificationService.initialize();
+              console.log('📱 Notification service initialized');
+            } catch (error) {
+              console.error('Failed to initialize notification service:', error);
+              // Don't fail login if notifications fail
+            }
             
             console.log('User fetched and set successfully:', { 
               id: user.id, 
@@ -273,21 +292,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
+      // Unregister notification service
+      try {
+        await notificationService.unregister();
+        console.log('📱 Notification service unregistered');
+      } catch (error) {
+        console.error('Failed to unregister notification service:', error);
+        // Don't fail logout if notifications fail
+      }
+      
       // Logout from Google first
       await GoogleAuthService.signOut();
       
       // Logout from backend
       await APIService.logout();
       
-      // Clear local storage
-      await AsyncStorage.multiRemove(['@auth_user', '@auth_access_token', '@auth_refresh_token']);
+      // Clear all tokens and user data using new secure storage
+      await APIService.clearTokens();
       setUser(null);
       
       console.log('Successfully signed out');
     } catch (error) {
       console.log('Error signing out:', error);
       // Even if there's an error, clear local state
-      await AsyncStorage.multiRemove(['@auth_user', '@auth_access_token', '@auth_refresh_token']);
+      await APIService.clearTokens();
       setUser(null);
     } finally {
       setIsLoading(false);

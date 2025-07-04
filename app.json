@@ -14,10 +14,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.meeton.app",
+      "googleServicesFile": "./ios/MeetOn/GoogleService-Info.plist",
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs access to your camera to take photos for your events.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select images for your events.",
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to help you set event locations and show nearby events.",
+        "UIBackgroundModes": ["remote-notification"],
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "google",
@@ -40,17 +42,17 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
+      "googleServicesFile": "./android/app/google-services.json",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION"
+        "android.permission.INTERNET",
+        "android.permission.WAKE_LOCK",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ],
       "package": "com.meeton.app"
     },
@@ -63,6 +65,15 @@
         "@react-native-google-signin/google-signin",
         {
           "iosUrlScheme": "com.googleusercontent.apps.38702126641-cs5p51cu1m4elmp9li0ptv2ot77k6pb9"
+        }
+      ],
+      "@react-native-firebase/app",
+      [
+        "@react-native-firebase/messaging",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
         }
       ]
     ]

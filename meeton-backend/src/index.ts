@@ -8,6 +8,7 @@ import passport from 'passport';
 import session from 'express-session';
 import DatabaseManager from './config/database';
 import PassportConfig from './config/passport';
+import FirebaseManager from './config/firebase';
 import { apiLimiter } from './middleware/rateLimit';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -16,12 +17,14 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import eventRoutes from './routes/events';
 import friendRoutes from './routes/friends';
+import notificationRoutes from './routes/notifications';
 
 console.log('🔥 Routes imported:', { 
   authRoutes: !!authRoutes, 
   userRoutes: !!userRoutes, 
   eventRoutes: !!eventRoutes, 
-  friendRoutes: !!friendRoutes 
+  friendRoutes: !!friendRoutes,
+  notificationRoutes: !!notificationRoutes
 });
 
 // Load environment variables
@@ -110,6 +113,7 @@ app.use('/api/events', (req, res, next) => {
   next();
 }, eventRoutes);
 app.use('/api/friends', friendRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // API documentation endpoint
 app.get('/api', (req, res) => {
@@ -122,6 +126,7 @@ app.get('/api', (req, res) => {
       users: '/api/users',
       events: '/api/events',
       friends: '/api/friends',
+      notifications: '/api/notifications',
     },
   });
 });
@@ -164,6 +169,9 @@ const startServer = async () => {
   try {
     // Connect to database
     await DatabaseManager.connect();
+    
+    // Initialize Firebase for notifications
+    FirebaseManager.initialize();
     
     // Start listening
     app.listen(PORT, () => {

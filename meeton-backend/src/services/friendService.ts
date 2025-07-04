@@ -1,5 +1,6 @@
 import { PrismaClient, FriendRequestStatus, FriendRequest } from '@prisma/client';
 import DatabaseManager from '../config/database';
+import { NotificationService } from './notificationService';
 
 /**
  * Friend Service
@@ -43,13 +44,30 @@ export class FriendService {
       }
 
       // Create friend request
-      await this.prisma.friendRequest.create({
+      const friendRequest = await this.prisma.friendRequest.create({
         data: {
           senderId,
           receiverId,
           status: 'PENDING'
+        },
+        include: {
+          sender: {
+            select: { name: true }
+          }
         }
       });
+
+      // Send notification to receiver
+      try {
+        await NotificationService.sendFriendRequestNotification(
+          receiverId,
+          friendRequest.sender.name || 'Someone',
+          friendRequest.id
+        );
+      } catch (error) {
+        console.error('Failed to send friend request notification:', error);
+        // Don't fail the request if notification fails
+      }
 
       return true;
     } catch (error) {
