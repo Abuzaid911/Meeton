@@ -57,7 +57,7 @@ router.get('/:id/photos',
     console.log('📷 GET /:id/photos route hit!', { params: req.params });
     next();
   },
-  apiLimiter,
+  apiLimiter, 
   (req, res) => {
     console.log('📷 Get photos handler working!');
     res.json({ success: true, message: 'Get photos working', data: [], params: req.params });

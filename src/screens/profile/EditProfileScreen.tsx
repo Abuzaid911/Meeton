@@ -20,6 +20,8 @@ import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '..
 
 import { useAuth } from '../../contexts/AuthContext';
 import { User } from '../../types';
+import ImageUploader from '../../components/common/ImageUploader';
+import { ImageType } from '../../services/imageService';
 
 interface EditProfileScreenProps {
   navigation: any;
@@ -92,16 +94,16 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
     }
   };
 
-  const handleImageEdit = () => {
-    Alert.alert(
-      'Change Photo',
-      'Choose an option',
-      [
-        { text: 'Camera', onPress: () => console.log('Camera') },
-        { text: 'Photo Library', onPress: () => console.log('Photo Library') },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+  const handleImageUpload = (imageUrl: string) => {
+    // Update the form data with the new image URL
+    setFormData(prev => ({
+      ...prev,
+      image: imageUrl,
+    }));
+  };
+
+  const handleImageError = (error: string) => {
+    Alert.alert('Upload Error', error);
   };
 
   const InputField: React.FC<{
@@ -171,15 +173,14 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
         >
           {/* Profile Photo Section */}
           <View style={styles.photoSection}>
-            <TouchableOpacity style={styles.photoContainer} onPress={handleImageEdit}>
-              <Image source={{ uri: initialUser?.image || 'https://ui-avatars.com/api/?name=User&background=667eea&color=fff&size=150' }} style={styles.profilePhoto} />
-              <View style={styles.photoOverlay}>
-                <BlurView intensity={60} style={styles.photoOverlayBlur}>
-                  <Ionicons name="camera" size={24} color={Colors.white} />
-                  <Text style={styles.photoOverlayText}>Change Photo</Text>
-                </BlurView>
-              </View>
-            </TouchableOpacity>
+            <ImageUploader
+              imageType={ImageType.PROFILE}
+              currentImageUrl={formData.image || initialUser?.image}
+              onImageUploaded={handleImageUpload}
+              onError={handleImageError}
+              placeholder="Upload profile photo"
+              style={styles.imageUploader}
+            />
           </View>
 
           {/* Form Fields */}
@@ -310,6 +311,9 @@ const styles = StyleSheet.create({
   photoSection: {
     alignItems: 'center',
     paddingVertical: Spacing.xl,
+  },
+  imageUploader: {
+    marginVertical: Spacing.md,
   },
   photoContainer: {
     position: 'relative',

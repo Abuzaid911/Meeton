@@ -24,6 +24,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../constants';
 import APIService from '../../services/api';
 import { useNavigation } from '@react-navigation/native';
+import EventHeaderUploader from '../../components/events/EventHeaderUploader';
 
 const { width } = Dimensions.get('window');
 

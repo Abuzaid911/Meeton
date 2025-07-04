@@ -25,6 +25,7 @@ import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '..
 import { Event, User, RSVP } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import APIService from '../../services/api';
+import EventPhotosGallery from '../../components/events/EventPhotosGallery';
 
 const { width, height } = Dimensions.get('window');
 

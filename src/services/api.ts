@@ -1283,6 +1283,48 @@ export class APIService {
   }
 
   /**
+   * Register FCM device token for push notifications
+   */
+  static async registerDeviceToken(token: string, platform: 'ios' | 'android'): Promise<boolean> {
+    try {
+      const response = await this.makeRequest(
+        '/api/notifications/register-token',
+        {
+          method: 'POST',
+          body: { token, platform },
+          requireAuth: true,
+        }
+      );
+
+      return response.success;
+    } catch (error) {
+      console.error('Register device token error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Unregister FCM device token
+   */
+  static async unregisterDeviceToken(token: string): Promise<boolean> {
+    try {
+      const response = await this.makeRequest(
+        '/api/notifications/unregister-token',
+        {
+          method: 'POST',
+          body: { token },
+          requireAuth: true,
+        }
+      );
+
+      return response.success;
+    } catch (error) {
+      console.error('Unregister device token error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Make HTTP request to backend API with enhanced session management
    */
   private static async makeRequest<T>(
