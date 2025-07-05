@@ -151,7 +151,6 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/location', locationRoutes);
 app.use('/api/sharing', sharingRoutes);
-console.log('🔍 Registering live location routes:', !!liveLocationRoutes);
 app.use('/api/live-location', liveLocationRoutes);
 
 // API documentation endpoint
