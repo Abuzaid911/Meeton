@@ -206,7 +206,7 @@ export class RedisManager {
         return null;
       }
 
-      return serialize ? JSON.parse(value) : value;
+      return serialize ? JSON.parse(value) as T : value as T;
     } catch (error) {
       console.error('Redis get error:', error);
       return null;
