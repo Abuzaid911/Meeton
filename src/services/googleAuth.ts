@@ -31,6 +31,16 @@ export class GoogleAuthService {
 
       const config = getGoogleSignInConfig();
       
+      console.log('🔧 Configuring Google Sign-In with:', {
+        platform: Platform.OS,
+        hasAndroidClientId: !!(config as any).androidClientId,
+        hasIosClientId: !!(config as any).iosClientId,
+        hasWebClientId: !!config.webClientId,
+        androidClientId: (config as any).androidClientId?.substring(0, 20) + '...',
+        webClientId: config.webClientId?.substring(0, 20) + '...',
+        offlineAccess: config.offlineAccess,
+      });
+      
       await GoogleSignin.configure({
         ...config,
         scopes: GOOGLE_CONFIG.scopes,
@@ -50,20 +60,25 @@ export class GoogleAuthService {
   static async signInWithGoogle(): Promise<GoogleAuthResult> {
     try {
       console.log('🔵 Starting Google Sign-In for', Platform.OS);
+      console.log('📱 Package/Bundle ID check...');
 
       // Ensure Google Sign-In is configured
       await this.configure();
 
       // Check if device supports Google services
+      console.log('🔍 Checking Google Play Services...');
       await GoogleSignin.hasPlayServices({
         showPlayServicesUpdateDialog: true,
       });
+      console.log('✅ Google Play Services available');
 
       // Sign in with Google natively
+      console.log('🔑 Attempting Google Sign-In...');
       const userInfo = await GoogleSignin.signIn();
       console.log('✅ Google Sign-In successful:', userInfo.data?.user?.email || 'Unknown user');
 
       // Get authentication tokens
+      console.log('🎫 Getting authentication tokens...');
       const tokens = await GoogleSignin.getTokens();
       console.log('✅ Google tokens obtained');
 
@@ -86,6 +101,12 @@ export class GoogleAuthService {
 
     } catch (error: any) {
       console.error('❌ Google Sign-In failed:', error);
+      console.error('❌ Error details:', {
+        code: error.code,
+        message: error.message,
+        name: error.name,
+        stack: error.stack?.substring(0, 200),
+      });
       
       let errorMessage = 'Sign in failed';
       
@@ -97,6 +118,10 @@ export class GoogleAuthService {
         errorMessage = 'Google Play Services not available';
       } else if (error.code === statusCodes.SIGN_IN_REQUIRED) {
         errorMessage = 'Sign in required';
+      } else if (error.message?.includes('DEVELOPER_ERROR')) {
+        errorMessage = 'Configuration error - please check SHA-1 fingerprint and package name';
+      } else if (error.message?.includes('NETWORK_ERROR')) {
+        errorMessage = 'Network error - please check your internet connection';
       }
 
       return {
