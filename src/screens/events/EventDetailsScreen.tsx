@@ -16,6 +16,8 @@ import {
   TextInput,
   FlatList,
   Linking,
+  Animated,
+  Switch,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -111,6 +113,10 @@ const EventDetailsScreen: React.FC = () => {
   const [showRSVPModal, setShowRSVPModal] = useState(false);
   const [pendingRSVP, setPendingRSVP] = useState<RSVP | null>(null);
   const [rsvpComment, setRSVPComment] = useState('');
+  const [rsvpDietaryRestrictions, setRsvpDietaryRestrictions] = useState('');
+  const [rsvpPlusOne, setRsvpPlusOne] = useState(false);
+  const [rsvpPlusOneName, setRsvpPlusOneName] = useState('');
+  const [rsvpRemindMe, setRsvpRemindMe] = useState(true);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [friendshipStatus, setFriendshipStatus] = useState<{
@@ -118,6 +124,7 @@ const EventDetailsScreen: React.FC = () => {
     requestId?: string;
   } | null>(null);
   const [loadingFriendship, setLoadingFriendship] = useState(false);
+  const [modalAnimation] = useState(new Animated.Value(0));
 
   useEffect(() => {
     loadEventDetails();
@@ -146,20 +153,42 @@ const EventDetailsScreen: React.FC = () => {
   const handleRSVP = (response: RSVP) => {
     setPendingRSVP(response);
     setShowRSVPModal(true);
+    
+    // Animate modal entrance
+    Animated.spring(modalAnimation, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 8,
+    }).start();
   };
 
   const confirmRSVP = async () => {
     if (pendingRSVP && event) {
       try {
-        // Call the backend API to update RSVP
-        const success = await APIService.rsvpToEvent(event.id, pendingRSVP);
+        // Prepare RSVP data with additional info
+        const rsvpData = {
+          rsvp: pendingRSVP,
+          comment: rsvpComment.trim(),
+          dietaryRestrictions: rsvpDietaryRestrictions.trim(),
+          plusOne: rsvpPlusOne,
+          plusOneName: rsvpPlusOneName.trim(),
+          remindMe: rsvpRemindMe,
+        };
+
+        const success = await APIService.rsvpToEvent(event.id, pendingRSVP, rsvpData);
         
         if (success) {
           setUserRSVP(pendingRSVP);
-          const commentText = rsvpComment.trim() ? ` with note: "${rsvpComment}"` : '';
-          Alert.alert('RSVP Updated', `You've responded "${pendingRSVP}" to this event${commentText}.`);
           
-          // Refresh event details to get updated guest list
+          // Show success message with additional context
+          let successMessage = `You've responded "${pendingRSVP}" to this event`;
+          if (rsvpComment.trim()) successMessage += ` with note: "${rsvpComment}"`;
+          if (rsvpPlusOne && rsvpPlusOneName.trim()) successMessage += ` (bringing ${rsvpPlusOneName})`;
+          
+          Alert.alert('RSVP Updated', successMessage + '.');
+          
+          // Refresh event details
           await loadEventDetails();
         } else {
           Alert.alert('Error', 'Failed to update RSVP. Please try again.');
@@ -170,16 +199,28 @@ const EventDetailsScreen: React.FC = () => {
       }
       
       // Reset modal state
-      setShowRSVPModal(false);
-      setPendingRSVP(null);
-      setRSVPComment('');
+      closeRSVPModal();
     }
   };
 
+  const closeRSVPModal = () => {
+    Animated.timing(modalAnimation, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowRSVPModal(false);
+      setPendingRSVP(null);
+      setRSVPComment('');
+      setRsvpDietaryRestrictions('');
+      setRsvpPlusOne(false);
+      setRsvpPlusOneName('');
+      setRsvpRemindMe(true);
+    });
+  };
+
   const cancelRSVP = () => {
-    setShowRSVPModal(false);
-    setPendingRSVP(null);
-    setRSVPComment('');
+    closeRSVPModal();
   };
 
   const handleBackPress = () => {
@@ -480,6 +521,34 @@ const EventDetailsScreen: React.FC = () => {
 
   const formatTime = (time: string) => {
     return time;
+  };
+
+  const getRSVPStats = () => {
+    if (!event?.attendees) return { going: 0, maybe: 0, notGoing: 0, total: 0 };
+    
+    const going = event.attendees.filter(a => a.rsvp === RSVP.YES).length;
+    const maybe = event.attendees.filter(a => a.rsvp === RSVP.MAYBE).length;
+    const notGoing = event.attendees.filter(a => a.rsvp === RSVP.NO).length;
+    
+    return { going, maybe, notGoing, total: going + maybe + notGoing };
+  };
+
+  const getRSVPIcon = (rsvpType: RSVP) => {
+    switch (rsvpType) {
+      case RSVP.YES: return 'checkmark-circle';
+      case RSVP.MAYBE: return 'help-circle';
+      case RSVP.NO: return 'close-circle';
+      default: return 'radio-button-off';
+    }
+  };
+
+  const getRSVPColor = (rsvpType: RSVP) => {
+    switch (rsvpType) {
+      case RSVP.YES: return Colors.systemGreen;
+      case RSVP.MAYBE: return Colors.systemYellow;
+      case RSVP.NO: return Colors.systemRed;
+      default: return 'rgba(255, 255, 255, 0.6)';
+    }
   };
 
   if (loading) {
@@ -1181,7 +1250,7 @@ const EventDetailsScreen: React.FC = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* RSVP Comment Modal */}
+      {/* Enhanced RSVP Modal */}
       <Modal
         visible={showRSVPModal}
         transparent={true}
@@ -1193,31 +1262,138 @@ const EventDetailsScreen: React.FC = () => {
           activeOpacity={1}
           onPress={cancelRSVP}
         >
-          <View style={styles.rsvpModalContainer}>
+          <View style={styles.enhancedRsvpModalContainer}>
             <BlurView intensity={100} tint="dark" style={styles.rsvpModalBlur}>
-              <View style={styles.rsvpModalContent}>
-                <Text style={styles.rsvpModalTitle}>
-                  RSVP: {pendingRSVP === RSVP.YES ? 'Going' : pendingRSVP === RSVP.MAYBE ? 'Maybe' : 'Not Going'}
-                </Text>
-                <Text style={styles.rsvpModalSubtitle}>
-                  Add a comment or note (optional)
-                </Text>
-                
-                <View style={styles.rsvpCommentContainer}>
-                  <BlurView intensity={80} tint="dark" style={styles.rsvpCommentBlur}>
-                    <TextInput
-                      style={styles.rsvpCommentInput}
-                      value={rsvpComment}
-                      onChangeText={setRSVPComment}
-                      placeholder={pendingRSVP === RSVP.YES ? "Can't wait to be there!" : pendingRSVP === RSVP.MAYBE ? "Will try to make it..." : "Sorry, can't make it"}
-                      placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                      multiline
-                      numberOfLines={3}
-                      maxLength={200}
+              <View style={styles.enhancedRsvpModalContent}>
+                {/* RSVP Header with Icon */}
+                <View style={styles.rsvpModalHeader}>
+                  <View style={[styles.rsvpModalIcon, { backgroundColor: getRSVPColor(pendingRSVP || RSVP.YES) }]}>
+                    <Ionicons 
+                      name={getRSVPIcon(pendingRSVP || RSVP.YES) as any} 
+                      size={32} 
+                      color={Colors.white} 
                     />
-                  </BlurView>
+                  </View>
+                  <Text style={styles.rsvpModalTitle}>
+                    {pendingRSVP === RSVP.YES ? 'Going to Event' : 
+                     pendingRSVP === RSVP.MAYBE ? 'Maybe Going' : 'Not Going'}
+                  </Text>
+                  <Text style={styles.rsvpModalSubtitle}>
+                    {pendingRSVP === RSVP.YES ? 'Great! We\'re excited to see you there!' : 
+                     pendingRSVP === RSVP.MAYBE ? 'Let us know when you decide!' : 
+                     'Thanks for letting us know.'}
+                  </Text>
                 </View>
+
+                {/* RSVP Stats */}
+                <View style={styles.rsvpStatsContainer}>
+                  <Text style={styles.rsvpStatsTitle}>Current RSVPs</Text>
+                  <View style={styles.rsvpStatsRow}>
+                    <View style={styles.rsvpStat}>
+                      <Text style={[styles.rsvpStatNumber, { color: Colors.systemGreen }]}>
+                        {getRSVPStats().going}
+                      </Text>
+                      <Text style={styles.rsvpStatLabel}>Going</Text>
+                    </View>
+                    <View style={styles.rsvpStat}>
+                      <Text style={[styles.rsvpStatNumber, { color: Colors.systemYellow }]}>
+                        {getRSVPStats().maybe}
+                      </Text>
+                      <Text style={styles.rsvpStatLabel}>Maybe</Text>
+                    </View>
+                    <View style={styles.rsvpStat}>
+                      <Text style={[styles.rsvpStatNumber, { color: Colors.systemRed }]}>
+                        {getRSVPStats().notGoing}
+                      </Text>
+                      <Text style={styles.rsvpStatLabel}>Not Going</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Comment Section */}
+                <View style={styles.rsvpSection}>
+                  <Text style={styles.rsvpSectionTitle}>Add a comment (optional)</Text>
+                  <View style={styles.rsvpCommentContainer}>
+                    <BlurView intensity={80} tint="dark" style={styles.rsvpCommentBlur}>
+                      <TextInput
+                        style={styles.rsvpCommentInput}
+                        value={rsvpComment}
+                        onChangeText={setRSVPComment}
+                        placeholder={pendingRSVP === RSVP.YES ? "Can't wait to be there!" : 
+                                   pendingRSVP === RSVP.MAYBE ? "Will try to make it..." : 
+                                   "Sorry, can't make it"}
+                        placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                        multiline
+                        numberOfLines={3}
+                        maxLength={200}
+                      />
+                    </BlurView>
+                  </View>
+                </View>
+
+                {/* Additional Options for Going/Maybe */}
+                {(pendingRSVP === RSVP.YES || pendingRSVP === RSVP.MAYBE) && (
+                  <>
+                    {/* Dietary Restrictions */}
+                    <View style={styles.rsvpSection}>
+                      <Text style={styles.rsvpSectionTitle}>Dietary restrictions (optional)</Text>
+                      <View style={styles.rsvpCommentContainer}>
+                        <BlurView intensity={80} tint="dark" style={styles.rsvpCommentBlur}>
+                          <TextInput
+                            style={[styles.rsvpCommentInput, { minHeight: 50 }]}
+                            value={rsvpDietaryRestrictions}
+                            onChangeText={setRsvpDietaryRestrictions}
+                            placeholder="Vegetarian, allergies, etc."
+                            placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                            maxLength={100}
+                          />
+                        </BlurView>
+                      </View>
+                    </View>
+
+                    {/* Plus One Option */}
+                    <View style={styles.rsvpSection}>
+                      <View style={styles.rsvpOptionRow}>
+                        <Text style={styles.rsvpSectionTitle}>Bringing someone?</Text>
+                        <Switch
+                          value={rsvpPlusOne}
+                          onValueChange={setRsvpPlusOne}
+                          trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: Colors.primary }}
+                          thumbColor={rsvpPlusOne ? Colors.white : 'rgba(255, 255, 255, 0.8)'}
+                        />
+                      </View>
+                      {rsvpPlusOne && (
+                        <View style={styles.rsvpCommentContainer}>
+                          <BlurView intensity={80} tint="dark" style={styles.rsvpCommentBlur}>
+                            <TextInput
+                              style={[styles.rsvpCommentInput, { minHeight: 50 }]}
+                              value={rsvpPlusOneName}
+                              onChangeText={setRsvpPlusOneName}
+                              placeholder="Guest's name"
+                              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                              maxLength={50}
+                            />
+                          </BlurView>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Reminder Option */}
+                    <View style={styles.rsvpSection}>
+                      <View style={styles.rsvpOptionRow}>
+                        <Text style={styles.rsvpSectionTitle}>Remind me before event</Text>
+                        <Switch
+                          value={rsvpRemindMe}
+                          onValueChange={setRsvpRemindMe}
+                          trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: Colors.primary }}
+                          thumbColor={rsvpRemindMe ? Colors.white : 'rgba(255, 255, 255, 0.8)'}
+                        />
+                      </View>
+                    </View>
+                  </>
+                )}
                 
+                {/* Action Buttons */}
                 <View style={styles.rsvpModalButtons}>
                   <TouchableOpacity
                     style={[styles.rsvpModalButton, styles.rsvpModalButtonSecondary]}
@@ -2226,6 +2402,84 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: 'rgba(255, 255, 255, 0.5)',
     marginTop: Spacing.xs,
+  },
+  rsvpSectionTitle: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: Colors.white,
+    marginBottom: Spacing.xs,
+  },
+  rsvpOptionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  rsvpStatsContainer: {
+    marginBottom: Spacing.lg,
+  },
+  rsvpStatsTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    marginBottom: Spacing.xs,
+  },
+  rsvpModalHeader: {
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  rsvpModalIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  enhancedRsvpModalContainer: {
+    margin: Spacing.lg,
+    borderRadius: 20,
+    overflow: 'hidden',
+    ...Shadows.large,
+    maxHeight: height * 0.85,
+  },
+  enhancedRsvpModalContent: {
+    padding: Spacing.xl,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    maxHeight: height * 0.85,
+  },
+  rsvpStatsContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  rsvpStatsTitle: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  rsvpSection: {
+    marginBottom: Spacing.lg,
+  },
+  rsvpSectionTitle: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.medium,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: Spacing.sm,
+  },
+  rsvpOptionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
   },
 });
 

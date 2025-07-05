@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -193,6 +193,8 @@ const CreateEventScreen: React.FC = () => {
   const [showLocationNameModal, setShowLocationNameModal] = useState(false);
   const [selectedLocationForNaming, setSelectedLocationForNaming] = useState<LocationSuggestion | null>(null);
   const [createdEventId, setCreatedEventId] = useState<string | null>(null);
+  const [friends, setFriends] = useState<Array<{id: string; name: string; image: string}>>([]);
+  const [loadingFriends, setLoadingFriends] = useState(false);
   const [form, setForm] = useState<EventForm>({
     name: '',
     description: '',
@@ -209,6 +211,36 @@ const CreateEventScreen: React.FC = () => {
     invitedFriends: [],
     maxGuests: '',
   });
+
+  useEffect(() => {
+    loadFriends();
+  }, []);
+
+  const loadFriends = async () => {
+    try {
+      setLoadingFriends(true);
+      const friendsData = await APIService.getFriends();
+      
+      // Transform friends data to match the expected format
+      const formattedFriends = friendsData.map((friend: any) => ({
+        id: friend.id,
+        name: friend.name,
+        image: friend.image || 'https://via.placeholder.com/150'
+      }));
+      
+      setFriends(formattedFriends);
+    } catch (error) {
+      console.error('Error loading friends:', error);
+      // Fallback to empty array instead of showing mock data
+      setFriends([]);
+    } finally {
+      setLoadingFriends(false);
+    }
+  };
+
+  const filteredFriends = friends.filter(friend =>
+    friend.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const updateForm = (field: keyof EventForm, value: string | boolean | null | string[] | { latitude: number; longitude: number }) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -445,12 +477,6 @@ const CreateEventScreen: React.FC = () => {
     updateForm('time', formattedTime);
     setShowTimePicker(false);
   };
-
-  const filteredFriends = mockFriends.filter(friend =>
-    friend.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-
 
   const CustomDatePicker: React.FC<{
     visible: boolean;

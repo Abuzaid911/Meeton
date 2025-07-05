@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,13 +8,24 @@ import {
   TouchableOpacity,
   StatusBar,
   Platform,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, FontWeight, BorderRadius, Shadows } from '../constants';
+import { Notification, NotificationSourceType } from '../types';
+import APIService from '../services/api';
 
 const NotificationsScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState('all');
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const tabs = [
     { id: 'all', name: 'All', icon: 'notifications' },
@@ -22,38 +33,196 @@ const NotificationsScreen: React.FC = () => {
     { id: 'updates', name: 'Updates', icon: 'information-circle' },
   ];
 
-  const mockNotifications = [
-    {
-      id: '1',
-      type: 'invite',
-      title: 'Event Invitation',
-      message: 'Sarah Johnson invited you to Summer BBQ & Pool Party',
-      time: '5 min ago',
-      unread: true,
-      icon: 'mail',
-      color: Colors.primary,
-    },
-    {
-      id: '2',
-      type: 'update',
-      title: 'Event Update',
-      message: 'Location changed for Tech Networking Mixer',
-      time: '1 hour ago',
-      unread: true,
-      icon: 'location',
-      color: Colors.systemOrange,
-    },
-    {
-      id: '3',
-      type: 'reminder',
-      title: 'Event Reminder',
-      message: 'Rooftop Sunset Yoga starts in 30 minutes',
-      time: '2 hours ago',
-      unread: false,
-      icon: 'time',
-      color: Colors.systemGreen,
-    },
-  ];
+  useEffect(() => {
+    loadNotifications(true);
+  }, [activeTab]);
+
+  const loadNotifications = async (reset = false) => {
+    try {
+      if (reset) {
+        setLoading(true);
+        setPage(1);
+      } else {
+        setLoadingMore(true);
+      }
+
+      const currentPage = reset ? 1 : page;
+      const result = await APIService.getNotifications({
+        page: currentPage,
+        limit: 20,
+        unreadOnly: false,
+      });
+
+      if (result) {
+        const newNotifications = result.notifications;
+        
+        if (reset) {
+          setNotifications(newNotifications);
+        } else {
+          setNotifications(prev => [...prev, ...newNotifications]);
+        }
+        
+        setHasMore(currentPage < result.pagination.totalPages);
+        setPage(currentPage + 1);
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+      Alert.alert('Error', 'Failed to load notifications. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadNotifications(true);
+  };
+
+  const handleLoadMore = () => {
+    if (hasMore && !loadingMore) {
+      loadNotifications(false);
+    }
+  };
+
+  const markAsRead = async (notificationId: string) => {
+    try {
+      const success = await APIService.markNotificationAsRead(notificationId);
+      if (success) {
+        setNotifications(prev => 
+          prev.map(notification => 
+            notification.id === notificationId 
+              ? { ...notification, isRead: true, readAt: new Date() }
+              : notification
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const success = await APIService.markAllNotificationsAsRead();
+      if (success) {
+        setNotifications(prev => 
+          prev.map(notification => ({ 
+            ...notification, 
+            isRead: true, 
+            readAt: new Date() 
+          }))
+        );
+        Alert.alert('Success', 'All notifications marked as read.');
+      } else {
+        Alert.alert('Error', 'Failed to mark all notifications as read.');
+      }
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      Alert.alert('Error', 'Failed to mark all notifications as read.');
+    }
+  };
+
+  const deleteNotification = async (notificationId: string) => {
+    try {
+      const success = await APIService.deleteNotification(notificationId);
+      if (success) {
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      } else {
+        Alert.alert('Error', 'Failed to delete notification.');
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      Alert.alert('Error', 'Failed to delete notification.');
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    Alert.alert(
+      'Clear All Notifications',
+      'Are you sure you want to delete all notifications? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Delete all notifications one by one (API might not have bulk delete)
+              const deletePromises = notifications.map(n => APIService.deleteNotification(n.id));
+              await Promise.all(deletePromises);
+              setNotifications([]);
+              Alert.alert('Success', 'All notifications cleared.');
+            } catch (error) {
+              console.error('Error clearing all notifications:', error);
+              Alert.alert('Error', 'Failed to clear all notifications.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const getNotificationIcon = (sourceType: NotificationSourceType): string => {
+    switch (sourceType) {
+      case NotificationSourceType.ATTENDEE:
+      case NotificationSourceType.PRIVATE_INVITATION:
+        return 'mail';
+      case NotificationSourceType.FRIEND_REQUEST:
+        return 'person-add';
+      case NotificationSourceType.EVENT_UPDATE:
+        return 'information-circle';
+      case NotificationSourceType.EVENT_CANCELLED:
+        return 'close-circle';
+      case NotificationSourceType.EVENT_REMINDER:
+        return 'time';
+      case NotificationSourceType.COMMENT:
+      case NotificationSourceType.MENTION:
+        return 'chatbubble';
+      case NotificationSourceType.SYSTEM:
+        return 'settings';
+      default:
+        return 'notifications';
+    }
+  };
+
+  const getNotificationColor = (sourceType: NotificationSourceType): string => {
+    switch (sourceType) {
+      case NotificationSourceType.ATTENDEE:
+      case NotificationSourceType.PRIVATE_INVITATION:
+        return Colors.primary;
+      case NotificationSourceType.FRIEND_REQUEST:
+        return Colors.systemGreen;
+      case NotificationSourceType.EVENT_UPDATE:
+        return Colors.systemOrange;
+      case NotificationSourceType.EVENT_CANCELLED:
+        return Colors.systemRed;
+      case NotificationSourceType.EVENT_REMINDER:
+        return Colors.systemBlue;
+      case NotificationSourceType.COMMENT:
+      case NotificationSourceType.MENTION:
+        return Colors.systemPurple;
+      case NotificationSourceType.SYSTEM:
+        return Colors.gray;
+      default:
+        return Colors.primary;
+    }
+  };
+
+  const getRelativeTime = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - new Date(date).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return new Date(date).toLocaleDateString();
+  };
 
   const GlassTabButton: React.FC<{
     title: string;
@@ -90,25 +259,67 @@ const NotificationsScreen: React.FC = () => {
   );
 
   const NotificationItem: React.FC<{
-    notification: typeof mockNotifications[0];
+    notification: Notification;
   }> = ({ notification }) => (
-    <TouchableOpacity style={styles.notificationItem} activeOpacity={0.8}>
+    <TouchableOpacity 
+      style={styles.notificationItem} 
+      activeOpacity={0.8}
+      onPress={() => {
+        if (!notification.isRead) {
+          markAsRead(notification.id);
+        }
+        // Handle navigation based on notification type and link
+        if (notification.link) {
+          // TODO: Navigate to appropriate screen based on link
+          console.log('Navigate to:', notification.link);
+        }
+      }}
+      onLongPress={() => {
+        Alert.alert(
+          'Notification Options',
+          'What would you like to do?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: notification.isRead ? 'Mark as Unread' : 'Mark as Read',
+              onPress: () => markAsRead(notification.id)
+            },
+            {
+              text: 'Delete',
+              style: 'destructive',
+              onPress: () => deleteNotification(notification.id)
+            }
+          ]
+        );
+      }}
+    >
       <BlurView intensity={80} style={styles.notificationBlur}>
         <View style={[
           styles.notificationContent,
-          notification.unread && styles.notificationContentUnread
+          !notification.isRead && styles.notificationContentUnread
         ]}>
           <View style={styles.notificationLeft}>
-            <View style={[styles.notificationIcon, { backgroundColor: notification.color }]}>
-              <Ionicons name={notification.icon as any} size={20} color={Colors.white} />
+            <View style={[
+              styles.notificationIcon, 
+              { backgroundColor: getNotificationColor(notification.sourceType) }
+            ]}>
+              <Ionicons 
+                name={getNotificationIcon(notification.sourceType) as any} 
+                size={20} 
+                color={Colors.white} 
+              />
             </View>
             <View style={styles.notificationText}>
-              <Text style={styles.notificationTitle}>{notification.title}</Text>
+              <Text style={styles.notificationTitle}>
+                {notification.sourceType.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
+              </Text>
               <Text style={styles.notificationMessage}>{notification.message}</Text>
-              <Text style={styles.notificationTime}>{notification.time}</Text>
+              <Text style={styles.notificationTime}>
+                {getRelativeTime(notification.createdAt)}
+              </Text>
             </View>
           </View>
-          {notification.unread && <View style={styles.unreadDot} />}
+          {!notification.isRead && <View style={styles.unreadDot} />}
         </View>
       </BlurView>
     </TouchableOpacity>
@@ -148,18 +359,60 @@ const NotificationsScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
-  const filteredNotifications = mockNotifications.filter(notification => {
+  const filteredNotifications = notifications.filter(notification => {
     if (activeTab === 'all') return true;
-    if (activeTab === 'invites') return notification.type === 'invite';
-    if (activeTab === 'updates') return notification.type === 'update' || notification.type === 'reminder';
+    if (activeTab === 'invites') {
+      return notification.sourceType === NotificationSourceType.ATTENDEE ||
+             notification.sourceType === NotificationSourceType.PRIVATE_INVITATION ||
+             notification.sourceType === NotificationSourceType.FRIEND_REQUEST;
+    }
+    if (activeTab === 'updates') {
+      return notification.sourceType === NotificationSourceType.EVENT_UPDATE ||
+             notification.sourceType === NotificationSourceType.EVENT_CANCELLED ||
+             notification.sourceType === NotificationSourceType.EVENT_REMINDER ||
+             notification.sourceType === NotificationSourceType.COMMENT ||
+             notification.sourceType === NotificationSourceType.MENTION ||
+             notification.sourceType === NotificationSourceType.SYSTEM;
+    }
     return true;
   });
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading notifications...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.primary}
+            titleColor={Colors.white}
+          />
+        }
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const paddingToBottom = 20;
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+            handleLoadMore();
+          }
+        }}
+        scrollEventThrottle={400}
+      >
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Notifications</Text>
@@ -186,9 +439,26 @@ const NotificationsScreen: React.FC = () => {
         {/* Notifications List */}
         <View style={styles.notificationsContainer}>
           {filteredNotifications.length > 0 ? (
-            filteredNotifications.map((notification) => (
-              <NotificationItem key={notification.id} notification={notification} />
-            ))
+            <>
+              {filteredNotifications.map((notification) => (
+                <NotificationItem key={notification.id} notification={notification} />
+              ))}
+              
+              {/* Load More Indicator */}
+              {loadingMore && (
+                <View style={styles.loadMoreContainer}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.loadMoreText}>Loading more...</Text>
+                </View>
+              )}
+              
+              {/* End of List Indicator */}
+              {!hasMore && notifications.length > 0 && (
+                <View style={styles.endOfListContainer}>
+                  <Text style={styles.endOfListText}>You're all caught up!</Text>
+                </View>
+              )}
+            </>
           ) : (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconContainer}>
@@ -212,13 +482,13 @@ const NotificationsScreen: React.FC = () => {
             <GlassButton
               title="Mark All Read"
               icon="checkmark-done"
-              onPress={() => {}}
+              onPress={markAllAsRead}
               variant="secondary"
             />
             <GlassButton
               title="Clear All"
               icon="trash"
-              onPress={() => {}}
+              onPress={clearAllNotifications}
               variant="primary"
             />
           </View>
@@ -306,6 +576,9 @@ const styles = StyleSheet.create({
   notificationsContainer: {
     paddingHorizontal: Spacing.xl,
     gap: Spacing.md,
+  },
+  notificationsListContent: {
+    paddingBottom: Spacing.lg,
   },
   notificationItem: {
     borderRadius: BorderRadius.lg,
@@ -445,6 +718,37 @@ const styles = StyleSheet.create({
   },
   actionButtonSecondaryText: {
     color: 'rgba(255, 255, 255, 0.8)',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.black,
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: FontSize.md,
+  },
+  loadMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  loadMoreText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: FontSize.sm,
+  },
+  endOfListContainer: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+  },
+  endOfListText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: FontSize.sm,
+    fontStyle: 'italic',
   },
 });
 

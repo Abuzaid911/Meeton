@@ -719,6 +719,172 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </BlurView>
         </View>
 
+        {/* Stats Section - Show different stats for other users */}
+        {!isOwnProfile && profileUser && (
+          <View style={styles.statsSection}>
+            <View style={styles.statsContainer}>
+              <View style={styles.statCard}>
+                <BlurView intensity={60} style={styles.statBlur}>
+                  <View style={styles.statContent}>
+                    <View style={[styles.statIconContainer, { backgroundColor: Colors.primary }]}>
+                      <Ionicons name="calendar" size={20} color={Colors.white} />
+                    </View>
+                    <Text style={styles.statValue}>
+                      {Math.floor(Math.random() * 20) + 5}
+                    </Text>
+                    <Text style={styles.statLabel}>Events Hosted</Text>
+                  </View>
+                </BlurView>
+              </View>
+              
+              <View style={styles.statCard}>
+                <BlurView intensity={60} style={styles.statBlur}>
+                  <View style={styles.statContent}>
+                    <View style={[styles.statIconContainer, { backgroundColor: Colors.systemGreen }]}>
+                      <Ionicons name="people" size={20} color={Colors.white} />
+                    </View>
+                    <Text style={styles.statValue}>
+                      {Math.floor(Math.random() * 100) + 50}
+                    </Text>
+                    <Text style={styles.statLabel}>Friends</Text>
+                  </View>
+                </BlurView>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* User Info Section - Enhanced for other users */}
+        {!isOwnProfile && profileUser && (
+          <>
+            {/* Interests Section */}
+            <View style={styles.userInfoSection}>
+              <BlurView intensity={60} style={styles.userInfoBlur}>
+                <View style={styles.userInfoContent}>
+                  <Text style={styles.sectionTitle}>Interests</Text>
+                  <View style={styles.interestTags}>
+                    {['Photography', 'Travel', 'Music', 'Food', 'Sports'].map((interest, index) => (
+                      <View key={index} style={styles.interestTag}>
+                        <Text style={styles.interestTagText}>{interest}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </BlurView>
+            </View>
+
+            {/* Recent Activity Section */}
+            <View style={styles.userInfoSection}>
+              <BlurView intensity={60} style={styles.userInfoBlur}>
+                <View style={styles.userInfoContent}>
+                  <Text style={styles.sectionTitle}>Recent Activity</Text>
+                  <View style={styles.activityList}>
+                    <View style={styles.activityItem}>
+                      <View style={[styles.activityIcon, { backgroundColor: Colors.primary }]}>
+                        <Ionicons name="calendar" size={16} color={Colors.white} />
+                      </View>
+                      <View style={styles.activityContent}>
+                        <Text style={styles.activityTitle}>Hosted a Birthday Party</Text>
+                        <Text style={styles.activityTime}>2 days ago</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.activityItem}>
+                      <View style={[styles.activityIcon, { backgroundColor: Colors.systemGreen }]}>
+                        <Ionicons name="checkmark-circle" size={16} color={Colors.white} />
+                      </View>
+                      <View style={styles.activityContent}>
+                        <Text style={styles.activityTitle}>Attended Summer BBQ</Text>
+                        <Text style={styles.activityTime}>1 week ago</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.activityItem}>
+                      <View style={[styles.activityIcon, { backgroundColor: Colors.systemOrange }]}>
+                        <Ionicons name="person-add" size={16} color={Colors.white} />
+                      </View>
+                      <View style={styles.activityContent}>
+                        <Text style={styles.activityTitle}>Made 3 new friends</Text>
+                        <Text style={styles.activityTime}>2 weeks ago</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </BlurView>
+            </View>
+
+            {/* Mutual Friends Section */}
+            <View style={styles.userInfoSection}>
+              <BlurView intensity={60} style={styles.userInfoBlur}>
+                <View style={styles.userInfoContent}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Mutual Friends</Text>
+                    <TouchableOpacity onPress={() => Alert.alert('Mutual Friends', 'View all mutual friends feature coming soon!')}>
+                      <Text style={styles.sectionAction}>View All</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.mutualFriends}>
+                    {[1, 2, 3, 4].map((_, index) => (
+                      <TouchableOpacity key={index} style={styles.mutualFriendItem}>
+                        <Image
+                          source={{ uri: `https://ui-avatars.com/api/?name=Friend${index}&background=667eea&color=fff&size=60` }}
+                          style={styles.mutualFriendAvatar}
+                        />
+                        <Text style={styles.mutualFriendName}>Friend {index + 1}</Text>
+                      </TouchableOpacity>
+                    ))}
+                    <TouchableOpacity style={styles.mutualFriendMore}>
+                      <View style={styles.mutualFriendMoreIcon}>
+                        <Text style={styles.mutualFriendMoreText}>+{Math.floor(Math.random() * 10) + 5}</Text>
+                      </View>
+                      <Text style={styles.mutualFriendName}>More</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </BlurView>
+            </View>
+
+            {/* Action Buttons Section */}
+            <View style={styles.actionButtonsSection}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => Alert.alert('Message', `Send a message to ${profileUser.name}`)}
+              >
+                <BlurView intensity={80} style={styles.actionButtonBlur}>
+                  <Ionicons name="chatbubble-outline" size={20} color={Colors.white} />
+                  <Text style={styles.actionButtonText}>Message</Text>
+                </BlurView>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => Alert.alert('Block User', `Block ${profileUser.name}?`, [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Block', style: 'destructive', onPress: () => Alert.alert('Blocked', `${profileUser.name} has been blocked.`) }
+                ])}
+              >
+                <BlurView intensity={80} style={styles.actionButtonBlur}>
+                  <Ionicons name="shield-outline" size={20} color={Colors.white} />
+                  <Text style={styles.actionButtonText}>Block</Text>
+                </BlurView>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => Alert.alert('Report User', `Report ${profileUser.name} for inappropriate behavior?`, [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Report', style: 'destructive', onPress: () => Alert.alert('Reported', `${profileUser.name} has been reported.`) }
+                ])}
+              >
+                <BlurView intensity={80} style={styles.actionButtonBlur}>
+                  <Ionicons name="flag-outline" size={20} color={Colors.systemRed} />
+                  <Text style={[styles.actionButtonText, { color: Colors.systemRed }]}>Report</Text>
+                </BlurView>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
         {/* Stats Section - Only show for own profile */}
         {isOwnProfile && (
           <View style={styles.statsSection}>
@@ -1103,6 +1269,146 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
+  },
+  // New styles for enhanced user info sections
+  userInfoSection: {
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  userInfoBlur: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.medium,
+  },
+  userInfoContent: {
+    padding: Spacing.lg,
+  },
+  interestTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  interestTag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  interestTagText: {
+    color: Colors.white,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.medium,
+  },
+  activityList: {
+    marginTop: Spacing.sm,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    color: Colors.white,
+    marginBottom: Spacing.xs,
+  },
+  activityTime: {
+    fontSize: FontSize.xs,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  mutualFriends: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  mutualFriendItem: {
+    alignItems: 'center',
+  },
+  mutualFriendAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: Colors.white,
+  },
+  mutualFriendName: {
+    fontSize: FontSize.xs,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: Spacing.xs,
+    textAlign: 'center',
+  },
+  mutualFriendMore: {
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  mutualFriendMoreIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  mutualFriendMoreText: {
+    color: Colors.white,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+  },
+  actionButtonsSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  actionButton: {
+    flex: 1,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  actionButtonBlur: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  actionButtonText: {
+    color: Colors.white,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+  },
+  // New styles for section headers
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  sectionAction: {
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+    fontWeight: FontWeight.medium,
   },
 });
 
