@@ -17,7 +17,7 @@ import {
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../constants';
 import { Event, User, RSVP } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,11 +38,16 @@ const getWeatherForEvent = (eventId: string) => {
 
 const EventListScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const { user, signOut } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Get filter parameters from navigation
+  const filter = route.params?.filter;
+  const screenTitle = route.params?.title || 'Events';
 
   // Simple animation values using basic Animated
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -65,18 +70,46 @@ const EventListScreen: React.FC = () => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [filter]);
 
   // Reload events when screen comes into focus (e.g. after creating a new event)
   useFocusEffect(
     React.useCallback(() => {
       loadEvents();
-    }, [])
+    }, [filter])
   );
 
   const loadEvents = async () => {
     try {
-      const fetchedEvents = await APIService.getEvents();
+      let fetchedEvents = await APIService.getEvents();
+      
+      // Filter events based on the filter parameter
+      if (filter && fetchedEvents && user) {
+        switch (filter) {
+          case 'hosted':
+            fetchedEvents = fetchedEvents.filter(event => event.hostId === user.id);
+            break;
+          case 'attending':
+            fetchedEvents = fetchedEvents.filter(event => 
+              event.attendees?.some(attendee => 
+                attendee.userId === user.id && attendee.rsvp === RSVP.YES
+              )
+            );
+            break;
+          case 'my-events':
+            fetchedEvents = fetchedEvents.filter(event => 
+              event.hostId === user.id || 
+              event.attendees?.some(attendee => 
+                attendee.userId === user.id && attendee.rsvp === RSVP.YES
+              )
+            );
+            break;
+          default:
+            // No filter, show all events
+            break;
+        }
+      }
+      
       // Type assertion since formatDate handles both string and Date types
       setEvents((fetchedEvents || []) as unknown as Event[]);
     } catch (error) {
@@ -363,18 +396,31 @@ const EventListScreen: React.FC = () => {
       {/* Floating Header */}
       <View style={styles.floatingHeader}>
         <BlurView intensity={30} tint="light">
-          {/* <BlurView intensity={10}> */}
           <View style={styles.header}>
-            <View style={styles.headerSpacer} />
-            <Image
-              source={require('../../assets/meetlogo.png')}
-              style={styles.appLogo}
-              resizeMode="contain"
-            />
-            <TouchableOpacity style={styles.profileButton} onPress={handleProfilePress}>
-              <Image source={{ uri: user?.image || 'https://ui-avatars.com/api/?name=User&background=667eea&color=fff&size=80' }} style={styles.profileImage} />
-              <View style={styles.profileRing} />
-            </TouchableOpacity>
+            {filter ? (
+              // Show back button and title when filtering
+              <>
+                <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+                  <Ionicons name="arrow-back" size={24} color={Colors.white} />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>{screenTitle}</Text>
+                <View style={styles.headerSpacer} />
+              </>
+            ) : (
+              // Show normal header when not filtering
+              <>
+                <View style={styles.headerSpacer} />
+                <Image
+                  source={require('../../assets/meetlogo.png')}
+                  style={styles.appLogo}
+                  resizeMode="contain"
+                />
+                <TouchableOpacity style={styles.profileButton} onPress={handleProfilePress}>
+                  <Image source={{ uri: user?.image || 'https://ui-avatars.com/api/?name=User&background=667eea&color=fff&size=80' }} style={styles.profileImage} />
+                  <View style={styles.profileRing} />
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </BlurView>
       </View>
@@ -502,16 +548,26 @@ const styles = StyleSheet.create({
   },
   
   headerSpacer: {
-    width: 40, // Matches profileButton size for perfect spacing
+    width: 44,
   },
-  
+  backButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.white,
+    textAlign: 'center',
+    flex: 1,
+  },
   appLogo: {
-    width: 280,
-    height: 78,
-    tintColor: Colors.white,
-    marginTop: -6,       // Pulls up visually without growing the header
-    marginBottom: -16,    // Slight correction to center vertically
-    alignSelf: 'center', // Ensures the logo doesn't shift based on layout weight
+    width: 120,
+    height: 32,
   },
   profileButton: {
     width: 40,
@@ -861,6 +917,17 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     color: Colors.white,
     fontWeight: FontWeight.medium,
+  },
+  backButton: {
+    padding: Spacing.sm,
+  },
+  headerTitle: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 });
 

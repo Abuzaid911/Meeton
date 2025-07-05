@@ -453,12 +453,18 @@ const CreateEventScreen: React.FC = () => {
   };
 
   const handleMapLocationSelect = (coordinate: { latitude: number; longitude: number }) => {
-    updateForm('coordinates', coordinate);
-    // In a real app, you'd reverse geocode to get the address
-    const locationName = `Selected Location (${coordinate.latitude.toFixed(4)}, ${coordinate.longitude.toFixed(4)})`;
-    updateForm('location', locationName);
-    setLocationQuery(locationName);
-    // Don't auto-close - let user confirm the selection
+    // Create a location object for the naming modal
+    const mapLocation: LocationSuggestion = {
+      id: `map-${Date.now()}`,
+      name: `Map Location`,
+      address: `${coordinate.latitude.toFixed(4)}, ${coordinate.longitude.toFixed(4)}`,
+      latitude: coordinate.latitude,
+      longitude: coordinate.longitude,
+    };
+    
+    setSelectedLocationForNaming(mapLocation);
+    setShowLocationNameModal(true);
+    setShowMapPicker(false);
   };
 
   const handleDateSelection = (date: Date) => {
@@ -877,8 +883,8 @@ const CreateEventScreen: React.FC = () => {
         <MapView
           style={styles.fullMap}
           initialRegion={{
-            latitude: form.coordinates?.latitude || 37.7749,
-            longitude: form.coordinates?.longitude || -122.4194,
+            latitude: 30.0444, // Cairo University latitude
+            longitude: 31.2357, // Cairo University longitude
             latitudeDelta: 0.0922,
             longitudeDelta: 0.0421,
           }}

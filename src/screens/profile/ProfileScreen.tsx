@@ -21,6 +21,7 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../constants';
 import { useAuth } from '../../contexts/AuthContext';
 import APIService from '../../services/api';
+import { notificationService } from '../../services/notificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -75,6 +76,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     eventsAttended: 0,
     friendsCount: 0
   });
+  const [otherUserStats, setOtherUserStats] = useState<UserStats>({
+    eventsHosted: 0,
+    eventsAttended: 0,
+    friendsCount: 0
+  });
+  const [userActivities, setUserActivities] = useState<any[]>([]);
+  const [mutualFriends, setMutualFriends] = useState<any[]>([]);
   const [friendshipStatus, setFriendshipStatus] = useState<{
     status: 'NONE' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'FRIENDS';
     requestId?: string;
@@ -98,15 +106,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       if (isOwnProfile) {
         loadFriendsData();
         loadUserStats();
+      } else {
+        loadOtherUserData();
       }
-    }, [isOwnProfile])
+    }, [isOwnProfile, userId])
   );
+
+  const getRelativeTime = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    return `${Math.floor(diffDays / 30)} months ago`;
+  };
 
   const loadProfileData = async () => {
     if (userId && userId !== user?.id) {
       await Promise.all([
         loadUserProfile(),
-        loadFriendshipStatus()
+        loadFriendshipStatus(),
+        loadOtherUserData()
       ]);
     } else {
       // Viewing own profile
@@ -115,6 +138,61 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         loadFriendsData(),
         loadUserStats()
       ]);
+    }
+  };
+
+  const loadOtherUserData = async () => {
+    if (!userId || userId === user?.id) return;
+
+    try {
+      // Load user stats
+      const userEvents = await APIService.getUserEvents(userId);
+      if (userEvents) {
+        setOtherUserStats({
+          eventsHosted: userEvents.hosting.length,
+          eventsAttended: userEvents.attending.length,
+          friendsCount: 0 // Will be updated when we get friends count
+        });
+      }
+
+      // Load mutual friends
+      const friends = await APIService.getFriends();
+      if (friends && Array.isArray(friends)) {
+        // For now, we'll show a subset as "mutual friends"
+        // In a real app, you'd have a specific API endpoint for mutual friends
+        const mutualFriendsSubset = friends.slice(0, 4);
+        setMutualFriends(mutualFriendsSubset);
+      }
+
+      // Update friends count in stats
+      setOtherUserStats(prev => ({
+        ...prev,
+        friendsCount: mutualFriends.length * 3 // Estimate based on mutual friends
+      }));
+
+      // Load recent activities (mock for now since we don't have this API endpoint)
+      // In a real app, you'd have an API endpoint for user activities
+      setUserActivities([
+        {
+          id: '1',
+          type: 'event_hosted',
+          title: 'Hosted an event',
+          time: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+          icon: 'calendar',
+          color: Colors.primary
+        },
+        {
+          id: '2',
+          type: 'event_attended',
+          title: 'Attended an event',
+          time: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          icon: 'checkmark-circle',
+          color: Colors.systemGreen
+        }
+      ]);
+
+    } catch (error) {
+      console.error('Error loading other user data:', error);
     }
   };
 
@@ -352,24 +430,80 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   };
 
   const handleViewMyEvents = () => {
-    navigation.navigate('EventList', { 
-      filter: 'my-events',
-      title: 'My Events'
+    navigation.navigate('Home', { 
+      screen: 'HomeMain',
+      params: { 
+        filter: 'my-events',
+        title: 'My Events'
+      }
     });
   };
 
   const handleViewHostedEvents = () => {
-    navigation.navigate('EventList', { 
-      filter: 'hosted',
-      title: 'Events I\'m Hosting'
+    navigation.navigate('Home', { 
+      screen: 'HomeMain',
+      params: { 
+        filter: 'hosted',
+        title: 'Events I\'m Hosting'
+      }
     });
   };
 
   const handleViewAttendingEvents = () => {
-    navigation.navigate('EventList', { 
-      filter: 'attending',
-      title: 'Events I\'m Attending'
+    navigation.navigate('Home', { 
+      screen: 'HomeMain',
+      params: { 
+        filter: 'attending',
+        title: 'Events I\'m Attending'
+      }
     });
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      console.log('🔔 Testing notification...');
+      
+      // Check if notifications are enabled
+      const isEnabled = await notificationService.isEnabled();
+      if (!isEnabled) {
+        Alert.alert(
+          'Notifications Disabled',
+          'Please enable notifications in your device settings to test notifications.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Settings', onPress: () => {
+              // This would ideally open settings, but we'll just show instructions
+              Alert.alert(
+                'Enable Notifications',
+                'Go to Settings > Notifications > MeetOn to enable notifications',
+                [{ text: 'OK' }]
+              );
+            }},
+          ]
+        );
+        return;
+      }
+
+      // Schedule a test notification
+      await notificationService.scheduleLocalNotification(
+        'Test Notification 🎉',
+        'This is a test notification from MeetOn!',
+        { seconds: 2 }
+      );
+
+      Alert.alert(
+        'Test Notification Sent',
+        'You should receive a test notification in 2 seconds!',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error testing notification:', error);
+      Alert.alert(
+        'Error',
+        'Failed to send test notification. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   // Stats data with real numbers and navigation
@@ -471,18 +605,18 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           showChevron: true,
         },
         {
-          icon: 'shield-checkmark-outline',
-          label: 'Privacy & Security',
-          subtitle: 'Manage your account security',
-          onPress: () => Alert.alert('Coming Soon', 'Privacy & Security settings will be available soon.'),
-          showChevron: true,
-        },
-        {
           icon: 'notifications-outline',
           label: 'Notifications',
           subtitle: 'Push notifications and alerts',
           onPress: () => setNotificationsEnabled(!notificationsEnabled),
           showChevron: false,
+        },
+        {
+          icon: 'megaphone-outline',
+          label: 'Test Notification',
+          subtitle: 'Send a test notification to verify setup',
+          onPress: handleTestNotification,
+          showChevron: true,
         },
       ],
     },
@@ -730,7 +864,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                       <Ionicons name="calendar" size={20} color={Colors.white} />
                     </View>
                     <Text style={styles.statValue}>
-                      {Math.floor(Math.random() * 20) + 5}
+                      {otherUserStats.eventsHosted}
                     </Text>
                     <Text style={styles.statLabel}>Events Hosted</Text>
                   </View>
@@ -744,7 +878,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                       <Ionicons name="people" size={20} color={Colors.white} />
                     </View>
                     <Text style={styles.statValue}>
-                      {Math.floor(Math.random() * 100) + 50}
+                      {otherUserStats.friendsCount}
                     </Text>
                     <Text style={styles.statLabel}>Friends</Text>
                   </View>
@@ -763,11 +897,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 <View style={styles.userInfoContent}>
                   <Text style={styles.sectionTitle}>Interests</Text>
                   <View style={styles.interestTags}>
-                    {['Photography', 'Travel', 'Music', 'Food', 'Sports'].map((interest, index) => (
-                      <View key={index} style={styles.interestTag}>
-                        <Text style={styles.interestTagText}>{interest}</Text>
-                      </View>
-                    ))}
+                    {profileUser.interests && profileUser.interests.length > 0 ? (
+                      profileUser.interests.map((interest, index) => (
+                        <View key={index} style={styles.interestTag}>
+                          <Text style={styles.interestTagText}>{interest}</Text>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.noDataText}>No interests shared</Text>
+                    )}
                   </View>
                 </View>
               </BlurView>
@@ -779,35 +917,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 <View style={styles.userInfoContent}>
                   <Text style={styles.sectionTitle}>Recent Activity</Text>
                   <View style={styles.activityList}>
-                    <View style={styles.activityItem}>
-                      <View style={[styles.activityIcon, { backgroundColor: Colors.primary }]}>
-                        <Ionicons name="calendar" size={16} color={Colors.white} />
-                      </View>
-                      <View style={styles.activityContent}>
-                        <Text style={styles.activityTitle}>Hosted a Birthday Party</Text>
-                        <Text style={styles.activityTime}>2 days ago</Text>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.activityItem}>
-                      <View style={[styles.activityIcon, { backgroundColor: Colors.systemGreen }]}>
-                        <Ionicons name="checkmark-circle" size={16} color={Colors.white} />
-                      </View>
-                      <View style={styles.activityContent}>
-                        <Text style={styles.activityTitle}>Attended Summer BBQ</Text>
-                        <Text style={styles.activityTime}>1 week ago</Text>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.activityItem}>
-                      <View style={[styles.activityIcon, { backgroundColor: Colors.systemOrange }]}>
-                        <Ionicons name="person-add" size={16} color={Colors.white} />
-                      </View>
-                      <View style={styles.activityContent}>
-                        <Text style={styles.activityTitle}>Made 3 new friends</Text>
-                        <Text style={styles.activityTime}>2 weeks ago</Text>
-                      </View>
-                    </View>
+                    {userActivities.length > 0 ? (
+                      userActivities.map((activity) => (
+                        <View key={activity.id} style={styles.activityItem}>
+                          <View style={[styles.activityIcon, { backgroundColor: activity.color }]}>
+                            <Ionicons name={activity.icon as any} size={16} color={Colors.white} />
+                          </View>
+                          <View style={styles.activityContent}>
+                            <Text style={styles.activityTitle}>{activity.title}</Text>
+                            <Text style={styles.activityTime}>{getRelativeTime(activity.time)}</Text>
+                          </View>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.noDataText}>No recent activity</Text>
+                    )}
                   </View>
                 </View>
               </BlurView>
@@ -819,68 +943,48 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 <View style={styles.userInfoContent}>
                   <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Mutual Friends</Text>
-                    <TouchableOpacity onPress={() => Alert.alert('Mutual Friends', 'View all mutual friends feature coming soon!')}>
-                      <Text style={styles.sectionAction}>View All</Text>
-                    </TouchableOpacity>
+                    {mutualFriends.length > 4 && (
+                      <TouchableOpacity onPress={() => navigation.navigate('Friends', { tab: 'mutual', userId })}>
+                        <Text style={styles.sectionAction}>View All</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                   <View style={styles.mutualFriends}>
-                    {[1, 2, 3, 4].map((_, index) => (
-                      <TouchableOpacity key={index} style={styles.mutualFriendItem}>
-                        <Image
-                          source={{ uri: `https://ui-avatars.com/api/?name=Friend${index}&background=667eea&color=fff&size=60` }}
-                          style={styles.mutualFriendAvatar}
-                        />
-                        <Text style={styles.mutualFriendName}>Friend {index + 1}</Text>
-                      </TouchableOpacity>
-                    ))}
-                    <TouchableOpacity style={styles.mutualFriendMore}>
-                      <View style={styles.mutualFriendMoreIcon}>
-                        <Text style={styles.mutualFriendMoreText}>+{Math.floor(Math.random() * 10) + 5}</Text>
-                      </View>
-                      <Text style={styles.mutualFriendName}>More</Text>
-                    </TouchableOpacity>
+                    {mutualFriends.length > 0 ? (
+                      <>
+                        {mutualFriends.slice(0, 4).map((friend, index) => (
+                          <TouchableOpacity 
+                            key={friend.id} 
+                            style={styles.mutualFriendItem}
+                            onPress={() => navigation.navigate('Profile', { userId: friend.id })}
+                          >
+                            <Image
+                              source={{ 
+                                uri: friend.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(friend.name)}&background=667eea&color=fff&size=60` 
+                              }}
+                              style={styles.mutualFriendAvatar}
+                            />
+                            <Text style={styles.mutualFriendName}>{friend.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                        {mutualFriends.length > 4 && (
+                          <TouchableOpacity 
+                            style={styles.mutualFriendMore}
+                            onPress={() => navigation.navigate('Friends', { tab: 'mutual', userId })}
+                          >
+                            <View style={styles.mutualFriendMoreIcon}>
+                              <Text style={styles.mutualFriendMoreText}>+{mutualFriends.length - 4}</Text>
+                            </View>
+                            <Text style={styles.mutualFriendName}>More</Text>
+                          </TouchableOpacity>
+                        )}
+                      </>
+                    ) : (
+                      <Text style={styles.noDataText}>No mutual friends</Text>
+                    )}
                   </View>
                 </View>
               </BlurView>
-            </View>
-
-            {/* Action Buttons Section */}
-            <View style={styles.actionButtonsSection}>
-              <TouchableOpacity 
-                style={styles.actionButton}
-                onPress={() => Alert.alert('Message', `Send a message to ${profileUser.name}`)}
-              >
-                <BlurView intensity={80} style={styles.actionButtonBlur}>
-                  <Ionicons name="chatbubble-outline" size={20} color={Colors.white} />
-                  <Text style={styles.actionButtonText}>Message</Text>
-                </BlurView>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.actionButton}
-                onPress={() => Alert.alert('Block User', `Block ${profileUser.name}?`, [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Block', style: 'destructive', onPress: () => Alert.alert('Blocked', `${profileUser.name} has been blocked.`) }
-                ])}
-              >
-                <BlurView intensity={80} style={styles.actionButtonBlur}>
-                  <Ionicons name="shield-outline" size={20} color={Colors.white} />
-                  <Text style={styles.actionButtonText}>Block</Text>
-                </BlurView>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.actionButton}
-                onPress={() => Alert.alert('Report User', `Report ${profileUser.name} for inappropriate behavior?`, [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Report', style: 'destructive', onPress: () => Alert.alert('Reported', `${profileUser.name} has been reported.`) }
-                ])}
-              >
-                <BlurView intensity={80} style={styles.actionButtonBlur}>
-                  <Ionicons name="flag-outline" size={20} color={Colors.systemRed} />
-                  <Text style={[styles.actionButtonText, { color: Colors.systemRed }]}>Report</Text>
-                </BlurView>
-              </TouchableOpacity>
             </View>
           </>
         )}
@@ -1300,6 +1404,12 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontWeight: FontWeight.medium,
   },
+  noDataText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: FontSize.sm,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+  },
   activityList: {
     marginTop: Spacing.sm,
   },
@@ -1409,6 +1519,13 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.primary,
     fontWeight: FontWeight.medium,
+  },
+  noDataText: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: Spacing.md,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,36 @@ interface EditProfileScreenProps {
   navigation: any;
 }
 
+// Move InputField component outside to prevent re-creation
+const InputField: React.FC<{
+  label: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder?: string;
+  multiline?: boolean;
+  maxLength?: number;
+  keyboardType?: any;
+}> = React.memo(({ label, value, onChangeText, placeholder, multiline = false, maxLength, keyboardType }) => (
+  <View style={styles.inputContainer}>
+    <Text style={styles.inputLabel}>{label}</Text>
+    <BlurView intensity={60} style={styles.inputBlur}>
+      <TextInput
+        style={[styles.input, multiline && styles.multilineInput]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="rgba(255, 255, 255, 0.5)"
+        multiline={multiline}
+        maxLength={maxLength}
+        keyboardType={keyboardType}
+        selectionColor={Colors.primary}
+        autoCorrect={false}
+        autoCapitalize={multiline ? 'sentences' : 'words'}
+      />
+    </BlurView>
+  </View>
+));
+
 const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => {
   const { user, updateUser } = useAuth();
   
@@ -45,14 +75,19 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
 
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleInputChange = (field: keyof User, value: any) => {
+  const handleInputChange = useCallback((field: keyof User, value: any) => {
     setFormData(prev => ({
       ...prev,
       [field]: value,
     }));
-  };
+  }, []);
 
-  const handleSave = async () => {
+  // Create stable callbacks for each field
+  const handleNameChange = useCallback((text: string) => handleInputChange('name', text), [handleInputChange]);
+  const handleBioChange = useCallback((text: string) => handleInputChange('bio', text), [handleInputChange]);
+  const handleLocationChange = useCallback((text: string) => handleInputChange('location', text), [handleInputChange]);
+
+  const handleSave = useCallback(async () => {
     if (!user) {
       Alert.alert('Error', 'You must be logged in to update your profile');
       return;
@@ -72,7 +107,6 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
         name: formData.name?.trim(),
         bio: formData.bio?.trim() || '',
         location: formData.location?.trim() || '',
-
       };
       
       // Update the user profile through AuthContext (which calls the backend)
@@ -102,7 +136,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [user, formData, updateUser, navigation]);
 
   const handleImageUpload = async (imageUrl: string) => {
     // Update the form data with the new image URL
@@ -123,33 +157,6 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
   const handleImageError = (error: string) => {
     Alert.alert('Upload Error', error);
   };
-
-  const InputField: React.FC<{
-    label: string;
-    value: string;
-    onChangeText: (text: string) => void;
-    placeholder?: string;
-    multiline?: boolean;
-    maxLength?: number;
-    keyboardType?: any;
-  }> = ({ label, value, onChangeText, placeholder, multiline = false, maxLength, keyboardType }) => (
-    <View style={styles.inputContainer}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <BlurView intensity={60} style={styles.inputBlur}>
-        <TextInput
-          style={[styles.input, multiline && styles.multilineInput]}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor="rgba(255, 255, 255, 0.5)"
-          multiline={multiline}
-          maxLength={maxLength}
-          keyboardType={keyboardType}
-          selectionColor={Colors.primary}
-        />
-      </BlurView>
-    </View>
-  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -214,7 +221,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
               <InputField
                 label="Full Name"
                 value={formData.name || ''}
-                onChangeText={(text) => handleInputChange('name', text)}
+                onChangeText={handleNameChange}
                 placeholder="Enter your full name"
                 maxLength={50}
               />
@@ -255,7 +262,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
               <InputField
                 label="Bio"
                 value={formData.bio || ''}
-                onChangeText={(text) => handleInputChange('bio', text)}
+                onChangeText={handleBioChange}
                 placeholder="Tell us about yourself..."
                 multiline={true}
                 maxLength={150}
@@ -264,7 +271,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
               <InputField
                 label="Location"
                 value={formData.location || ''}
-                onChangeText={(text) => handleInputChange('location', text)}
+                onChangeText={handleLocationChange}
                 placeholder="City, State"
                 maxLength={100}
               />

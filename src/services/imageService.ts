@@ -87,10 +87,10 @@ export enum ImageType {
 
 class ImageService {
   private static readonly MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB (reduced from backend's 10MB for better UX)
-  private static readonly COMPRESSION_QUALITY = 0.8;
+  private static readonly COMPRESSION_QUALITY = 0.9; // Increased from 0.8 to 0.9 for better quality
   private static readonly MAX_DIMENSIONS = {
     [ImageType.PROFILE]: { width: 800, height: 800 },
-    [ImageType.EVENT_HEADER]: { width: 1200, height: 600 },
+    [ImageType.EVENT_HEADER]: { width: 1600, height: 900 }, // Increased from 1200x600 for better quality
     [ImageType.EVENT_PHOTO]: { width: 1200, height: 1200 },
   };
 
@@ -169,14 +169,26 @@ class ImageService {
     try {
       const maxDimensions = this.MAX_DIMENSIONS[imageType];
       
-      const manipulatorOptions: ImageManipulator.Action[] = [
-        {
+      // For event headers, maintain aspect ratio and use fit instead of resize
+      const manipulatorOptions: ImageManipulator.Action[] = [];
+      
+      if (imageType === ImageType.EVENT_HEADER) {
+        // Use fit to maintain aspect ratio for event headers
+        manipulatorOptions.push({
           resize: {
             width: maxDimensions.width,
             height: maxDimensions.height,
           },
-        },
-      ];
+        });
+      } else {
+        // For other image types, use the existing resize logic
+        manipulatorOptions.push({
+          resize: {
+            width: maxDimensions.width,
+            height: maxDimensions.height,
+          },
+        });
+      }
 
       const result = await ImageManipulator.manipulateAsync(
         uri,

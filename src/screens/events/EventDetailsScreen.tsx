@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,9 @@ import {
   Linking,
   Animated,
   Switch,
+  Vibration,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -151,6 +154,13 @@ const EventDetailsScreen: React.FC = () => {
   };
 
   const handleRSVP = (response: RSVP) => {
+    // Add vibration feedback (fallback for haptics)
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate(100); // Short vibration on iOS
+    } else {
+      Vibration.vibrate(50); // Short vibration on Android
+    }
+    
     setPendingRSVP(response);
     setShowRSVPModal(true);
     
@@ -164,42 +174,84 @@ const EventDetailsScreen: React.FC = () => {
   };
 
   const confirmRSVP = async () => {
-    if (pendingRSVP && event) {
-      try {
-        // Prepare RSVP data with additional info
-        const rsvpData = {
-          rsvp: pendingRSVP,
-          comment: rsvpComment.trim(),
-          dietaryRestrictions: rsvpDietaryRestrictions.trim(),
-          plusOne: rsvpPlusOne,
-          plusOneName: rsvpPlusOneName.trim(),
-          remindMe: rsvpRemindMe,
-        };
-
-        const success = await APIService.rsvpToEvent(event.id, pendingRSVP, rsvpData);
+    if (!pendingRSVP || !event) return;
+    
+    try {
+      await APIService.rsvpToEvent(eventId, pendingRSVP);
+      
+      // Immediately update local state for instant UI feedback
+      setUserRSVP(pendingRSVP);
+      
+      // Update the event data immediately to reflect new RSVP
+      if (event && user) {
+        const updatedEvent = { ...event };
         
-        if (success) {
-          setUserRSVP(pendingRSVP);
-          
-          // Show success message with additional context
-          let successMessage = `You've responded "${pendingRSVP}" to this event`;
-          if (rsvpComment.trim()) successMessage += ` with note: "${rsvpComment}"`;
-          if (rsvpPlusOne && rsvpPlusOneName.trim()) successMessage += ` (bringing ${rsvpPlusOneName})`;
-          
-          Alert.alert('RSVP Updated', successMessage + '.');
-          
-          // Refresh event details
-          await loadEventDetails();
+        // Find existing attendee or create new one
+        const existingAttendeeIndex = updatedEvent.attendees?.findIndex(
+          a => a.userId === user.id
+        ) ?? -1;
+        
+        if (existingAttendeeIndex >= 0 && updatedEvent.attendees) {
+          // Update existing attendee's RSVP
+          updatedEvent.attendees[existingAttendeeIndex] = {
+            ...updatedEvent.attendees[existingAttendeeIndex],
+            rsvp: pendingRSVP,
+          };
         } else {
-          Alert.alert('Error', 'Failed to update RSVP. Please try again.');
+          // Add new attendee
+          if (!updatedEvent.attendees) updatedEvent.attendees = [];
+          updatedEvent.attendees.push({
+            id: `temp-${user.id}`, // Temporary ID until reload
+            userId: user.id,
+            eventId: event.id,
+            rsvp: pendingRSVP,
+            responseTime: new Date(),
+            checkedIn: false,
+            inviteOpenCount: 0,
+            user: user,
+            event: event,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
         }
-      } catch (error) {
-        console.error('RSVP error:', error);
-        Alert.alert('Error', 'Failed to update RSVP. Please try again.');
+        
+        // Update the event state immediately
+        setEvent(updatedEvent);
       }
       
-      // Reset modal state
+      // Close modal and reset form
       closeRSVPModal();
+      
+      // Reload event details to get updated data from server
+      // Use a longer delay to ensure server has processed the update
+      setTimeout(async () => {
+        try {
+          const refreshedEvent = await APIService.getEventById(eventId);
+          if (refreshedEvent) {
+            setEvent(refreshedEvent as unknown as Event);
+            // Ensure userRSVP stays consistent with the new RSVP
+            const userAttendee = refreshedEvent.attendees?.find((a: any) => a.userId === user?.id);
+            if (userAttendee) {
+              setUserRSVP(userAttendee.rsvp as RSVP);
+            } else {
+              // If user is not in attendees list but we just RSVP'd, keep the pendingRSVP
+              setUserRSVP(pendingRSVP);
+            }
+          }
+        } catch (error) {
+          console.error('Error refreshing event details:', error);
+          // Keep the local state if refresh fails
+        }
+      }, 2000);
+      
+    } catch (error) {
+      console.error('RSVP error:', error);
+      Alert.alert('Error', 'Failed to update RSVP. Please try again.');
+      // Reset userRSVP to previous state if API call failed
+      const userAttendee = event.attendees?.find(a => a.userId === user?.id);
+      if (userAttendee) {
+        setUserRSVP(userAttendee.rsvp as RSVP);
+      }
     }
   };
 
@@ -592,6 +644,7 @@ const EventDetailsScreen: React.FC = () => {
           source={{ uri: event.headerImageUrl }}
           style={styles.fullScreenBackground}
           imageStyle={styles.backgroundImage}
+          resizeMode="cover"
         >
           {/* Enhanced Dark Gradient Overlay */}
           <LinearGradient
@@ -633,79 +686,126 @@ const EventDetailsScreen: React.FC = () => {
             {/* Content sections... (same content repeated below for both cases) */}
             <View style={styles.rsvpSection}>
               <View style={styles.rsvpButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.rsvpButton,
-                    styles.rsvpButtonGoing,
-                    userRSVP === RSVP.YES && styles.rsvpButtonActive,
-                  ]}
-                  onPress={() => handleRSVP(RSVP.YES)}
-                >
-                  <BlurView intensity={80} tint="light" style={styles.rsvpButtonBlur}>
-                    <View style={[styles.rsvpButtonContent, userRSVP === RSVP.YES && styles.rsvpButtonContentActive]}>
-                      <Ionicons 
-                        name="checkmark" 
-                        size={20} 
-                        color={userRSVP === RSVP.YES ? Colors.white : Colors.systemGreen} 
-                      />
-                      <Text style={[
-                        styles.rsvpButtonText,
-                        userRSVP === RSVP.YES && styles.rsvpButtonTextActive,
+                <Animated.View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.rsvpButton,
+                      styles.rsvpButtonGoing,
+                      userRSVP === RSVP.YES && styles.rsvpButtonActive,
+                    ]}
+                    onPress={() => handleRSVP(RSVP.YES)}
+                    activeOpacity={0.8}
+                  >
+                    <BlurView intensity={80} tint="light" style={styles.rsvpButtonBlur}>
+                      <Animated.View style={[
+                        styles.rsvpButtonContent, 
+                        userRSVP === RSVP.YES && styles.rsvpButtonContentActive
                       ]}>
-                        Going
-                      </Text>
-                    </View>
-                  </BlurView>
-                </TouchableOpacity>
+                        <Ionicons 
+                          name="checkmark" 
+                          size={20} 
+                          color={userRSVP === RSVP.YES ? Colors.white : Colors.systemGreen} 
+                        />
+                        <Text style={[
+                          styles.rsvpButtonText,
+                          userRSVP === RSVP.YES && styles.rsvpButtonTextActive,
+                        ]}>
+                          Going
+                        </Text>
+                        {userRSVP === RSVP.YES && (
+                          <View style={styles.rsvpActiveIndicator}>
+                            <Ionicons name="star" size={12} color={Colors.white} />
+                          </View>
+                        )}
+                      </Animated.View>
+                    </BlurView>
+                  </TouchableOpacity>
+                </Animated.View>
 
-                <TouchableOpacity
-                  style={[
-                    styles.rsvpButton,
-                    userRSVP === RSVP.NO && styles.rsvpButtonActiveNo,
-                  ]}
-                  onPress={() => handleRSVP(RSVP.NO)}
-                >
-                  <BlurView intensity={80} tint="dark" style={styles.rsvpButtonBlur}>
-                    <View style={styles.rsvpButtonContent}>
-                      <Ionicons 
-                        name="close" 
-                        size={20} 
-                        color={userRSVP === RSVP.NO ? Colors.white : Colors.systemRed} 
-                      />
-                      <Text style={[
-                        styles.rsvpButtonText,
-                        userRSVP === RSVP.NO && styles.rsvpButtonTextActive,
-                      ]}>
-                        Not Going
-                      </Text>
-                    </View>
-                  </BlurView>
-                </TouchableOpacity>
+                <Animated.View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.rsvpButton,
+                      userRSVP === RSVP.NO && styles.rsvpButtonActiveNo,
+                    ]}
+                    onPress={() => handleRSVP(RSVP.NO)}
+                    activeOpacity={0.8}
+                  >
+                    <BlurView intensity={80} tint="dark" style={styles.rsvpButtonBlur}>
+                      <Animated.View style={styles.rsvpButtonContent}>
+                        <Ionicons 
+                          name="close" 
+                          size={20} 
+                          color={userRSVP === RSVP.NO ? Colors.white : Colors.systemRed} 
+                        />
+                        <Text style={[
+                          styles.rsvpButtonText,
+                          userRSVP === RSVP.NO && styles.rsvpButtonTextActive,
+                        ]}>
+                          Not Going
+                        </Text>
+                        {userRSVP === RSVP.NO && (
+                          <View style={styles.rsvpActiveIndicator}>
+                            <Ionicons name="star" size={12} color={Colors.white} />
+                          </View>
+                        )}
+                      </Animated.View>
+                    </BlurView>
+                  </TouchableOpacity>
+                </Animated.View>
 
-                <TouchableOpacity
-                  style={[
-                    styles.rsvpButton,
-                    userRSVP === RSVP.MAYBE && styles.rsvpButtonActiveMaybe,
-                  ]}
-                  onPress={() => handleRSVP(RSVP.MAYBE)}
-                >
-                  <BlurView intensity={80} tint="dark" style={styles.rsvpButtonBlur}>
-                    <View style={styles.rsvpButtonContent}>
-                      <Ionicons 
-                        name="help" 
-                        size={20} 
-                        color={userRSVP === RSVP.MAYBE ? Colors.white : Colors.systemYellow} 
-                      />
-                      <Text style={[
-                        styles.rsvpButtonText,
-                        userRSVP === RSVP.MAYBE && styles.rsvpButtonTextActive,
-                      ]}>
-                        Maybe
-                      </Text>
-                    </View>
-                  </BlurView>
-                </TouchableOpacity>
+                <Animated.View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.rsvpButton,
+                      userRSVP === RSVP.MAYBE && styles.rsvpButtonActiveMaybe,
+                    ]}
+                    onPress={() => handleRSVP(RSVP.MAYBE)}
+                    activeOpacity={0.8}
+                  >
+                    <BlurView intensity={80} tint="dark" style={styles.rsvpButtonBlur}>
+                      <Animated.View style={styles.rsvpButtonContent}>
+                        <Ionicons 
+                          name="help" 
+                          size={20} 
+                          color={userRSVP === RSVP.MAYBE ? Colors.white : Colors.systemYellow} 
+                        />
+                        <Text style={[
+                          styles.rsvpButtonText,
+                          userRSVP === RSVP.MAYBE && styles.rsvpButtonTextActive,
+                        ]}>
+                          Maybe
+                        </Text>
+                        {userRSVP === RSVP.MAYBE && (
+                          <View style={styles.rsvpActiveIndicator}>
+                            <Ionicons name="star" size={12} color={Colors.white} />
+                          </View>
+                        )}
+                      </Animated.View>
+                    </BlurView>
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
+              
+              {/* RSVP Status Message */}
+              {userRSVP && (
+                <Animated.View style={styles.rsvpStatusMessage}>
+                  <BlurView intensity={60} tint="dark" style={styles.rsvpStatusBlur}>
+                    <View style={styles.rsvpStatusContent}>
+                      <Ionicons 
+                        name={getRSVPIcon(userRSVP) as any} 
+                        size={16} 
+                        color={getRSVPColor(userRSVP)} 
+                      />
+                      <Text style={styles.rsvpStatusText}>
+                        {userRSVP === RSVP.YES ? 'You\'re going! See you there 🎉' : 
+                         userRSVP === RSVP.MAYBE ? 'Let us know when you decide!' : 
+                         'Thanks for letting us know'}
+                      </Text>
+                    </View>
+                  </BlurView>
+                </Animated.View>
+              )}
             </View>
 
             {/* Host Information Section */}
@@ -921,79 +1021,126 @@ const EventDetailsScreen: React.FC = () => {
             {/* RSVP Section */}
             <View style={styles.rsvpSection}>
               <View style={styles.rsvpButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.rsvpButton,
-                    styles.rsvpButtonGoing,
-                    userRSVP === RSVP.YES && styles.rsvpButtonActive,
-                  ]}
-                  onPress={() => handleRSVP(RSVP.YES)}
-                >
-                  <BlurView intensity={80} tint="light" style={styles.rsvpButtonBlur}>
-                    <View style={[styles.rsvpButtonContent, userRSVP === RSVP.YES && styles.rsvpButtonContentActive]}>
-                      <Ionicons 
-                        name="checkmark" 
-                        size={20} 
-                        color={userRSVP === RSVP.YES ? Colors.white : Colors.systemGreen} 
-                      />
-                      <Text style={[
-                        styles.rsvpButtonText,
-                        userRSVP === RSVP.YES && styles.rsvpButtonTextActive,
+                <Animated.View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.rsvpButton,
+                      styles.rsvpButtonGoing,
+                      userRSVP === RSVP.YES && styles.rsvpButtonActive,
+                    ]}
+                    onPress={() => handleRSVP(RSVP.YES)}
+                    activeOpacity={0.8}
+                  >
+                    <BlurView intensity={80} tint="light" style={styles.rsvpButtonBlur}>
+                      <Animated.View style={[
+                        styles.rsvpButtonContent, 
+                        userRSVP === RSVP.YES && styles.rsvpButtonContentActive
                       ]}>
-                        Going
-                      </Text>
-                    </View>
-                  </BlurView>
-                </TouchableOpacity>
+                        <Ionicons 
+                          name="checkmark" 
+                          size={20} 
+                          color={userRSVP === RSVP.YES ? Colors.white : Colors.systemGreen} 
+                        />
+                        <Text style={[
+                          styles.rsvpButtonText,
+                          userRSVP === RSVP.YES && styles.rsvpButtonTextActive,
+                        ]}>
+                          Going
+                        </Text>
+                        {userRSVP === RSVP.YES && (
+                          <View style={styles.rsvpActiveIndicator}>
+                            <Ionicons name="star" size={12} color={Colors.white} />
+                          </View>
+                        )}
+                      </Animated.View>
+                    </BlurView>
+                  </TouchableOpacity>
+                </Animated.View>
 
-                <TouchableOpacity
-                  style={[
-                    styles.rsvpButton,
-                    userRSVP === RSVP.NO && styles.rsvpButtonActiveNo,
-                  ]}
-                  onPress={() => handleRSVP(RSVP.NO)}
-                >
-                  <BlurView intensity={80} tint="dark" style={styles.rsvpButtonBlur}>
-                    <View style={styles.rsvpButtonContent}>
-                      <Ionicons 
-                        name="close" 
-                        size={20} 
-                        color={userRSVP === RSVP.NO ? Colors.white : Colors.systemRed} 
-                      />
-                      <Text style={[
-                        styles.rsvpButtonText,
-                        userRSVP === RSVP.NO && styles.rsvpButtonTextActive,
-                      ]}>
-                        Not Going
-                      </Text>
-                    </View>
-                  </BlurView>
-                </TouchableOpacity>
+                <Animated.View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.rsvpButton,
+                      userRSVP === RSVP.NO && styles.rsvpButtonActiveNo,
+                    ]}
+                    onPress={() => handleRSVP(RSVP.NO)}
+                    activeOpacity={0.8}
+                  >
+                    <BlurView intensity={80} tint="dark" style={styles.rsvpButtonBlur}>
+                      <Animated.View style={styles.rsvpButtonContent}>
+                        <Ionicons 
+                          name="close" 
+                          size={20} 
+                          color={userRSVP === RSVP.NO ? Colors.white : Colors.systemRed} 
+                        />
+                        <Text style={[
+                          styles.rsvpButtonText,
+                          userRSVP === RSVP.NO && styles.rsvpButtonTextActive,
+                        ]}>
+                          Not Going
+                        </Text>
+                        {userRSVP === RSVP.NO && (
+                          <View style={styles.rsvpActiveIndicator}>
+                            <Ionicons name="star" size={12} color={Colors.white} />
+                          </View>
+                        )}
+                      </Animated.View>
+                    </BlurView>
+                  </TouchableOpacity>
+                </Animated.View>
 
-                <TouchableOpacity
-                  style={[
-                    styles.rsvpButton,
-                    userRSVP === RSVP.MAYBE && styles.rsvpButtonActiveMaybe,
-                  ]}
-                  onPress={() => handleRSVP(RSVP.MAYBE)}
-                >
-                  <BlurView intensity={80} tint="dark" style={styles.rsvpButtonBlur}>
-                    <View style={styles.rsvpButtonContent}>
-                      <Ionicons 
-                        name="help" 
-                        size={20} 
-                        color={userRSVP === RSVP.MAYBE ? Colors.white : Colors.systemYellow} 
-                      />
-                      <Text style={[
-                        styles.rsvpButtonText,
-                        userRSVP === RSVP.MAYBE && styles.rsvpButtonTextActive,
-                      ]}>
-                        Maybe
-                      </Text>
-                    </View>
-                  </BlurView>
-                </TouchableOpacity>
+                <Animated.View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.rsvpButton,
+                      userRSVP === RSVP.MAYBE && styles.rsvpButtonActiveMaybe,
+                    ]}
+                    onPress={() => handleRSVP(RSVP.MAYBE)}
+                    activeOpacity={0.8}
+                  >
+                    <BlurView intensity={80} tint="dark" style={styles.rsvpButtonBlur}>
+                      <Animated.View style={styles.rsvpButtonContent}>
+                        <Ionicons 
+                          name="help" 
+                          size={20} 
+                          color={userRSVP === RSVP.MAYBE ? Colors.white : Colors.systemYellow} 
+                        />
+                        <Text style={[
+                          styles.rsvpButtonText,
+                          userRSVP === RSVP.MAYBE && styles.rsvpButtonTextActive,
+                        ]}>
+                          Maybe
+                        </Text>
+                        {userRSVP === RSVP.MAYBE && (
+                          <View style={styles.rsvpActiveIndicator}>
+                            <Ionicons name="star" size={12} color={Colors.white} />
+                          </View>
+                        )}
+                      </Animated.View>
+                    </BlurView>
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
+              
+              {/* RSVP Status Message */}
+              {userRSVP && (
+                <Animated.View style={styles.rsvpStatusMessage}>
+                  <BlurView intensity={60} tint="dark" style={styles.rsvpStatusBlur}>
+                    <View style={styles.rsvpStatusContent}>
+                      <Ionicons 
+                        name={getRSVPIcon(userRSVP) as any} 
+                        size={16} 
+                        color={getRSVPColor(userRSVP)} 
+                      />
+                      <Text style={styles.rsvpStatusText}>
+                        {userRSVP === RSVP.YES ? 'You\'re going! See you there 🎉' : 
+                         userRSVP === RSVP.MAYBE ? 'Let us know when you decide!' : 
+                         'Thanks for letting us know'}
+                      </Text>
+                    </View>
+                  </BlurView>
+                </Animated.View>
+              )}
             </View>
 
             {/* Host Information Section */}
@@ -1250,169 +1397,186 @@ const EventDetailsScreen: React.FC = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* Enhanced RSVP Modal */}
+      {/* Enhanced RSVP Modal with Spring Animation */}
       <Modal
         visible={showRSVPModal}
         transparent={true}
-        animationType="fade"
+        animationType="none" // We'll handle animation manually
         onRequestClose={cancelRSVP}
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
-          activeOpacity={1}
-          onPress={cancelRSVP}
-        >
-          <View style={styles.enhancedRsvpModalContainer}>
-            <BlurView intensity={100} tint="dark" style={styles.rsvpModalBlur}>
-              <View style={styles.enhancedRsvpModalContent}>
-                {/* RSVP Header with Icon */}
-                <View style={styles.rsvpModalHeader}>
-                  <View style={[styles.rsvpModalIcon, { backgroundColor: getRSVPColor(pendingRSVP || RSVP.YES) }]}>
-                    <Ionicons 
-                      name={getRSVPIcon(pendingRSVP || RSVP.YES) as any} 
-                      size={32} 
-                      color={Colors.white} 
-                    />
-                  </View>
-                  <Text style={styles.rsvpModalTitle}>
-                    {pendingRSVP === RSVP.YES ? 'Going to Event' : 
-                     pendingRSVP === RSVP.MAYBE ? 'Maybe Going' : 'Not Going'}
-                  </Text>
-                  <Text style={styles.rsvpModalSubtitle}>
-                    {pendingRSVP === RSVP.YES ? 'Great! We\'re excited to see you there!' : 
-                     pendingRSVP === RSVP.MAYBE ? 'Let us know when you decide!' : 
-                     'Thanks for letting us know.'}
-                  </Text>
-                </View>
-
-                {/* RSVP Stats */}
-                <View style={styles.rsvpStatsContainer}>
-                  <Text style={styles.rsvpStatsTitle}>Current RSVPs</Text>
-                  <View style={styles.rsvpStatsRow}>
-                    <View style={styles.rsvpStat}>
-                      <Text style={[styles.rsvpStatNumber, { color: Colors.systemGreen }]}>
-                        {getRSVPStats().going}
-                      </Text>
-                      <Text style={styles.rsvpStatLabel}>Going</Text>
-                    </View>
-                    <View style={styles.rsvpStat}>
-                      <Text style={[styles.rsvpStatNumber, { color: Colors.systemYellow }]}>
-                        {getRSVPStats().maybe}
-                      </Text>
-                      <Text style={styles.rsvpStatLabel}>Maybe</Text>
-                    </View>
-                    <View style={styles.rsvpStat}>
-                      <Text style={[styles.rsvpStatNumber, { color: Colors.systemRed }]}>
-                        {getRSVPStats().notGoing}
-                      </Text>
-                      <Text style={styles.rsvpStatLabel}>Not Going</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Comment Section */}
-                <View style={styles.rsvpSection}>
-                  <Text style={styles.rsvpSectionTitle}>Add a comment (optional)</Text>
-                  <View style={styles.rsvpCommentContainer}>
-                    <BlurView intensity={80} tint="dark" style={styles.rsvpCommentBlur}>
-                      <TextInput
-                        style={styles.rsvpCommentInput}
-                        value={rsvpComment}
-                        onChangeText={setRSVPComment}
-                        placeholder={pendingRSVP === RSVP.YES ? "Can't wait to be there!" : 
-                                   pendingRSVP === RSVP.MAYBE ? "Will try to make it..." : 
-                                   "Sorry, can't make it"}
-                        placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                        multiline
-                        numberOfLines={3}
-                        maxLength={200}
-                      />
-                    </BlurView>
-                  </View>
-                </View>
-
-                {/* Additional Options for Going/Maybe */}
-                {(pendingRSVP === RSVP.YES || pendingRSVP === RSVP.MAYBE) && (
-                  <>
-                    {/* Dietary Restrictions */}
-                    <View style={styles.rsvpSection}>
-                      <Text style={styles.rsvpSectionTitle}>Dietary restrictions (optional)</Text>
-                      <View style={styles.rsvpCommentContainer}>
-                        <BlurView intensity={80} tint="dark" style={styles.rsvpCommentBlur}>
-                          <TextInput
-                            style={[styles.rsvpCommentInput, { minHeight: 50 }]}
-                            value={rsvpDietaryRestrictions}
-                            onChangeText={setRsvpDietaryRestrictions}
-                            placeholder="Vegetarian, allergies, etc."
-                            placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                            maxLength={100}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <Animated.View style={[styles.modalOverlay, { opacity: showRSVPModal ? 1 : 0 }]}>
+            <TouchableOpacity 
+              style={styles.modalOverlay} 
+              activeOpacity={1}
+              onPress={cancelRSVP}
+            >
+              <Animated.View 
+                style={[
+                  styles.enhancedRsvpModalContainer,
+                  {
+                    transform: [
+                      {
+                        scale: showRSVPModal ? 1 : 0.9,
+                      },
+                      {
+                        translateY: showRSVPModal ? 0 : 50,
+                      }
+                    ],
+                  }
+                ]}
+                onStartShouldSetResponder={() => true}
+                onResponderGrant={() => {}}
+              >
+                <BlurView intensity={100} tint="dark" style={styles.rsvpModalBlur}>
+                  <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                    <ScrollView 
+                      style={styles.enhancedRsvpModalContent}
+                      contentContainerStyle={styles.rsvpModalScrollContent}
+                      showsVerticalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
+                      bounces={false}
+                    >
+                      {/* RSVP Header with Animated Icon */}
+                      <Animated.View style={styles.rsvpModalHeader}>
+                        <Animated.View style={[
+                          styles.rsvpModalIcon, 
+                          { 
+                            backgroundColor: getRSVPColor(pendingRSVP || RSVP.YES),
+                            transform: [{ scale: showRSVPModal ? 1 : 0.8 }]
+                          }
+                        ]}>
+                          <Ionicons 
+                            name={getRSVPIcon(pendingRSVP || RSVP.YES) as any} 
+                            size={32} 
+                            color={Colors.white} 
                           />
-                        </BlurView>
-                      </View>
-                    </View>
+                        </Animated.View>
+                        <Text style={styles.rsvpModalTitle}>
+                          {pendingRSVP === RSVP.YES ? 'Going to Event' : 
+                           pendingRSVP === RSVP.MAYBE ? 'Maybe Going' : 'Not Going'}
+                        </Text>
+                        <Text style={styles.rsvpModalSubtitle}>
+                          {pendingRSVP === RSVP.YES ? 'Great! We\'re excited to see you there!' : 
+                           pendingRSVP === RSVP.MAYBE ? 'Let us know when you decide!' : 
+                           'Thanks for letting us know.'}
+                        </Text>
+                      </Animated.View>
 
-                    {/* Plus One Option */}
-                    <View style={styles.rsvpSection}>
-                      <View style={styles.rsvpOptionRow}>
-                        <Text style={styles.rsvpSectionTitle}>Bringing someone?</Text>
-                        <Switch
-                          value={rsvpPlusOne}
-                          onValueChange={setRsvpPlusOne}
-                          trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: Colors.primary }}
-                          thumbColor={rsvpPlusOne ? Colors.white : 'rgba(255, 255, 255, 0.8)'}
-                        />
+                      {/* RSVP Stats */}
+                      <View style={styles.rsvpStatsContainer}>
+                        <Text style={styles.rsvpStatsTitle}>Current RSVPs</Text>
+                        <View style={styles.rsvpStatsRow}>
+                          <View style={styles.rsvpStat}>
+                            <Text style={[styles.rsvpStatNumber, { color: Colors.systemGreen }]}>
+                              {getRSVPStats().going}
+                            </Text>
+                            <Text style={styles.rsvpStatLabel}>Going</Text>
+                          </View>
+                          <View style={styles.rsvpStat}>
+                            <Text style={[styles.rsvpStatNumber, { color: Colors.systemYellow }]}>
+                              {getRSVPStats().maybe}
+                            </Text>
+                            <Text style={styles.rsvpStatLabel}>Maybe</Text>
+                          </View>
+                          <View style={styles.rsvpStat}>
+                            <Text style={[styles.rsvpStatNumber, { color: Colors.systemRed }]}>
+                              {getRSVPStats().notGoing}
+                            </Text>
+                            <Text style={styles.rsvpStatLabel}>Not Going</Text>
+                          </View>
+                        </View>
                       </View>
-                      {rsvpPlusOne && (
+
+                      {/* Comment Section */}
+                      <View style={styles.rsvpSection}>
+                        <Text style={styles.rsvpSectionTitle}>Add a comment (optional)</Text>
                         <View style={styles.rsvpCommentContainer}>
                           <BlurView intensity={80} tint="dark" style={styles.rsvpCommentBlur}>
                             <TextInput
-                              style={[styles.rsvpCommentInput, { minHeight: 50 }]}
-                              value={rsvpPlusOneName}
-                              onChangeText={setRsvpPlusOneName}
-                              placeholder="Guest's name"
+                              style={styles.rsvpCommentInput}
+                              value={rsvpComment}
+                              onChangeText={setRSVPComment}
+                              placeholder={pendingRSVP === RSVP.YES ? "Can't wait to be there!" : 
+                                         pendingRSVP === RSVP.MAYBE ? "Will try to make it..." : 
+                                         "Sorry, can't make it"}
                               placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                              maxLength={50}
+                              multiline
+                              numberOfLines={3}
+                              maxLength={200}
                             />
                           </BlurView>
                         </View>
-                      )}
-                    </View>
-
-                    {/* Reminder Option */}
-                    <View style={styles.rsvpSection}>
-                      <View style={styles.rsvpOptionRow}>
-                        <Text style={styles.rsvpSectionTitle}>Remind me before event</Text>
-                        <Switch
-                          value={rsvpRemindMe}
-                          onValueChange={setRsvpRemindMe}
-                          trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: Colors.primary }}
-                          thumbColor={rsvpRemindMe ? Colors.white : 'rgba(255, 255, 255, 0.8)'}
-                        />
                       </View>
-                    </View>
-                  </>
-                )}
-                
-                {/* Action Buttons */}
-                <View style={styles.rsvpModalButtons}>
-                  <TouchableOpacity
-                    style={[styles.rsvpModalButton, styles.rsvpModalButtonSecondary]}
-                    onPress={cancelRSVP}
-                  >
-                    <Text style={styles.rsvpModalButtonTextSecondary}>Cancel</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.rsvpModalButton, styles.rsvpModalButtonPrimary]}
-                    onPress={confirmRSVP}
-                  >
-                    <Text style={styles.rsvpModalButtonText}>Confirm RSVP</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </BlurView>
-          </View>
-        </TouchableOpacity>
+
+                      {/* Additional Options for Going/Maybe - Removed Dietary Restrictions */}
+                      {(pendingRSVP === RSVP.YES || pendingRSVP === RSVP.MAYBE) && (
+                        <>
+                          {/* Plus One Option */}
+                          <View style={styles.rsvpSection}>
+                            <View style={styles.rsvpOptionRow}>
+                              <Text style={styles.rsvpSectionTitle}>Bringing someone?</Text>
+                              <Switch
+                                value={rsvpPlusOne}
+                                onValueChange={setRsvpPlusOne}
+                                trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: Colors.primary }}
+                                thumbColor={rsvpPlusOne ? Colors.white : 'rgba(255, 255, 255, 0.8)'}
+                              />
+                            </View>
+                            {rsvpPlusOne && (
+                              <View style={styles.rsvpCommentContainer}>
+                                <BlurView intensity={80} tint="dark" style={styles.rsvpCommentBlur}>
+                                  <TextInput
+                                    style={[styles.rsvpCommentInput, { minHeight: 50 }]}
+                                    value={rsvpPlusOneName}
+                                    onChangeText={setRsvpPlusOneName}
+                                    placeholder="Guest's name"
+                                    placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                                    maxLength={50}
+                                  />
+                                </BlurView>
+                              </View>
+                            )}
+                          </View>
+
+                          {/* Reminder Option */}
+                          <View style={styles.rsvpSection}>
+                            <View style={styles.rsvpOptionRow}>
+                              <Text style={styles.rsvpSectionTitle}>Remind me before event</Text>
+                              <Switch
+                                value={rsvpRemindMe}
+                                onValueChange={setRsvpRemindMe}
+                                trackColor={{ false: 'rgba(255, 255, 255, 0.2)', true: Colors.primary }}
+                                thumbColor={rsvpRemindMe ? Colors.white : 'rgba(255, 255, 255, 0.8)'}
+                              />
+                            </View>
+                          </View>
+                        </>
+                      )}
+                      
+                      {/* Action Buttons */}
+                      <View style={styles.rsvpModalButtons}>
+                        <TouchableOpacity
+                          style={[styles.rsvpModalButton, styles.rsvpModalButtonSecondary]}
+                          onPress={cancelRSVP}
+                        >
+                          <Text style={styles.rsvpModalButtonTextSecondary}>Cancel</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                          style={[styles.rsvpModalButton, styles.rsvpModalButtonPrimary]}
+                          onPress={confirmRSVP}
+                        >
+                          <Text style={styles.rsvpModalButtonText}>Confirm RSVP</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </ScrollView>
+                  </TouchableWithoutFeedback>
+                </BlurView>
+              </Animated.View>
+            </TouchableOpacity>
+          </Animated.View>
+        </TouchableWithoutFeedback>
       </Modal>
 
       {/* Android Options Modal */}
@@ -2445,11 +2609,10 @@ const styles = StyleSheet.create({
     maxHeight: height * 0.85,
   },
   enhancedRsvpModalContent: {
-    padding: Spacing.xl,
+    maxHeight: height * 0.85,
     backgroundColor: 'rgba(0, 0, 0, 0.9)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
-    maxHeight: height * 0.85,
   },
   rsvpStatsContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -2480,6 +2643,47 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.sm,
+  },
+  rsvpStatusMessage: {
+    marginTop: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.medium,
+  },
+  rsvpStatusBlur: {
+    borderRadius: BorderRadius.lg,
+  },
+  rsvpStatusContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    gap: Spacing.sm,
+  },
+  rsvpStatusText: {
+    fontSize: FontSize.sm,
+    color: Colors.white,
+    fontWeight: FontWeight.medium,
+    flex: 1,
+  },
+  rsvpActiveIndicator: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.small,
+  },
+  rsvpModalScrollContent: {
+    padding: Spacing.xl,
+    paddingBottom: Spacing.xxl,
   },
 });
 

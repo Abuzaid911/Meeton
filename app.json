@@ -19,6 +19,7 @@
         "NSCameraUsageDescription": "This app needs access to your camera to take photos for your events.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select images for your events.",
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to help you set event locations and show nearby events.",
+        "NSUserNotificationUsageDescription": "This app needs access to notifications to send you updates about events, friend requests, and other important information.",
         "UIBackgroundModes": ["remote-notification"],
         "CFBundleURLTypes": [
           {

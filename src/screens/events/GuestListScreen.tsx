@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 70 : 50,
+    paddingTop: 0,
     paddingHorizontal: Spacing.lg,
     zIndex: 2,
   },
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 70 : 50,
+    paddingTop: 0,
   },
   loadingText: {
     fontSize: FontSize.md,
@@ -627,7 +627,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing.xl,
-    paddingTop: Platform.OS === 'ios' ? 70 : 50,
+    paddingTop: 0,
   },
   errorText: {
     fontSize: FontSize.lg,

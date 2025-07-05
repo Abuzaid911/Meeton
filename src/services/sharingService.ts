@@ -1,6 +1,7 @@
 import { APIService } from './api';
 import { Share, Linking } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { APP_DOMAIN } from '../config/api';
 
 export interface InviteLink {
   id: string;
@@ -54,13 +55,24 @@ export interface CreateInviteLinkOptions {
 
 class SharingService {
   /**
+   * Generate event URL for sharing
+   */
+  private generateEventUrl(eventId: string): string {
+    return `${APP_DOMAIN}/event/${eventId}`;
+  }
+
+  /**
    * Generate an invite link for an event
    */
   async generateInviteLink(eventId: string, options: CreateInviteLinkOptions = {}): Promise<InviteLink> {
     try {
       const data = await APIService.generateInviteLink(eventId, options);
       if (data) {
-        return data;
+        // Ensure the URL uses the correct app domain
+        return {
+          ...data,
+          url: this.generateEventUrl(eventId)
+        };
       }
     } catch (error) {
       console.warn('Failed to generate invite link from API, using fallback:', error);
@@ -81,7 +93,7 @@ class SharingService {
       isActive: true,
       customMessage: options.customMessage || null,
       createdAt: now,
-      url: `https://meeton-backend.onrender.com/events/${eventId}`
+      url: this.generateEventUrl(eventId)
     };
   }
 
@@ -142,7 +154,11 @@ class SharingService {
     try {
       const data = await APIService.getShareContent(eventId, platform);
       if (data) {
-        return data;
+        // Ensure the URL uses the correct app domain
+        return {
+          ...data,
+          url: this.generateEventUrl(eventId)
+        };
       }
     } catch (error) {
       console.warn('Failed to get share content from API, using fallback:', error);
@@ -156,7 +172,7 @@ class SharingService {
         return {
           title: event.name,
           description: `Join me at ${event.name} on ${eventDate} at ${event.location}!`,
-          url: `https://meeton-backend.onrender.com/events/${eventId}`,
+          url: this.generateEventUrl(eventId),
           imageUrl: event.headerImageUrl || undefined,
           hashtags: ['MeetOn', 'Event']
         };
@@ -169,7 +185,7 @@ class SharingService {
     return {
       title: 'Join my event!',
       description: 'You\'re invited to an awesome event. Check it out!',
-      url: `https://meeton-backend.onrender.com/events/${eventId}`,
+      url: this.generateEventUrl(eventId),
       hashtags: ['MeetOn', 'Event']
     };
   }
@@ -195,8 +211,8 @@ class SharingService {
       console.warn('Failed to generate QR code from API, using fallback:', error);
     }
     
-    // Fallback: Use a QR code service
-    const eventUrl = `https://meeton-backend.onrender.com/events/${eventId}`;
+    // Fallback: Use a QR code service with proper app domain
+    const eventUrl = this.generateEventUrl(eventId);
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(eventUrl)}`;
     return qrCodeUrl;
   }

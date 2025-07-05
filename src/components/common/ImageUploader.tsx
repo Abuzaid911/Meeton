@@ -49,7 +49,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       const result = await ImageService.pickFromCamera({
         allowsEditing: true,
         aspect: getAspectRatio(),
-        quality: 0.8,
+        quality: 0.9, // Increased from 0.8 to 0.9
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -67,7 +67,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       const result = await ImageService.pickFromGallery({
         allowsEditing: true,
         aspect: getAspectRatio(),
-        quality: 0.8,
+        quality: 0.9, // Increased from 0.8 to 0.9
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {

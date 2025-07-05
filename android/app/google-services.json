@@ -11,7 +11,16 @@
           "package_name": "com.meeton.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "38702126641-rn0e5nm88jrnm4cohi9m7dhnavuprmon.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.meeton.app",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "placeholder-api-key"

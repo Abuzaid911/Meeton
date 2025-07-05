@@ -93,8 +93,8 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
     try {
       const result = await ImageService.pickFromCamera({
         allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
+        aspect: undefined, // Remove fixed aspect ratio to allow natural ratios
+        quality: 0.9, // Increase quality from 0.8 to 0.9
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -112,8 +112,8 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
     try {
       const result = await ImageService.pickFromGallery({
         allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
+        aspect: undefined, // Remove fixed aspect ratio to allow natural ratios
+        quality: 0.9, // Increase quality from 0.8 to 0.9
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
   },
   photoContainer: {
     width: photoWidth,
-    height: photoWidth,
+    height: photoWidth * 0.8, // Use a more natural aspect ratio instead of square
     marginHorizontal: 5,
     marginVertical: 5,
     borderRadius: 8,
@@ -429,6 +429,7 @@ const styles = StyleSheet.create({
   photo: {
     width: '100%',
     height: '100%',
+    backgroundColor: '#f0f0f0', // Add background color for loading state
   },
   photoOverlay: {
     position: 'absolute',

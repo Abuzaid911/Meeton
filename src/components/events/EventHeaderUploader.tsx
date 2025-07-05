@@ -46,7 +46,7 @@ const EventHeaderUploader: React.FC<EventHeaderUploaderProps> = ({
       const result = await ImageService.pickFromCamera({
         allowsEditing: true,
         aspect: [16, 9], // Landscape aspect ratio
-        quality: 0.8,
+        quality: 0.9, // Increased quality from 0.8 to 0.9
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -64,7 +64,7 @@ const EventHeaderUploader: React.FC<EventHeaderUploaderProps> = ({
       const result = await ImageService.pickFromGallery({
         allowsEditing: true,
         aspect: [16, 9], // Landscape aspect ratio
-        quality: 0.8,
+        quality: 0.9, // Increased quality from 0.8 to 0.9
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
