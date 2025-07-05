@@ -269,7 +269,7 @@ export class SessionService {
           userAgent: session.userAgent,
           ipAddress: session.ipAddress,
           deviceInfo: session.deviceInfo,
-        };
+        } as ActiveSession;
       });
 
       const sessions = await Promise.all(sessionPromises);

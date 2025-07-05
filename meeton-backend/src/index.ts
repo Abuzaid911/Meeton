@@ -213,14 +213,15 @@ const startServer = async () => {
     FirebaseManager.initialize();
     
     // Start listening
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
+      const cacheHealthy = await cacheService.isHealthy();
       console.log(`
 🚀 MeetOn Backend Server Started
 📍 Environment: ${process.env.NODE_ENV || 'development'}
 🌐 Port: ${PORT}
 💾 Database: Connected
 🔗 Redis: ${redisManager.isHealthy() ? 'Connected' : 'Disconnected'}
-📊 Cache: ${cacheService.isHealthy() ? 'Active' : 'Inactive'}
+📊 Cache: ${cacheHealthy ? 'Active' : 'Inactive'}
 🔗 Health Check: http://localhost:${PORT}/health
 📚 API Documentation: http://localhost:${PORT}/api
       `);

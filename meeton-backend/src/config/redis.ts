@@ -415,9 +415,9 @@ export class RedisManager {
       const sessionId = await this.get(`user:${userId}`, { 
         prefix: 'session',
         serialize: false 
-      }) as string;
+      });
       
-      if (!sessionId) {
+      if (!sessionId || typeof sessionId !== 'string') {
         return null;
       }
 

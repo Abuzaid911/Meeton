@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import DatabaseManager from '../config/database';
+import axios from 'axios';
 
 /**
  * Location Service
@@ -65,20 +66,16 @@ export class LocationService {
       }
 
       const url = `${this.baseUrl}/geocode/json?address=${encodeURIComponent(address)}&key=${this.googleApiKey}`;
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Geocoding API error: ${response.status}`);
-      }
+      const response = await axios.get(url);
+      const data: any = response.data;
 
-      const data = await response.json();
-      
-      if (data.status !== 'OK' || !data.results.length) {
-        console.warn('Geocoding failed:', data.status);
-        return null;
+      if (data && data.results && data.results.length > 0) {
+        const result = data.results[0];
+        const location = result.geometry?.location;
+        return this.parseGeocodingResult(result);
       }
-
-      return this.parseGeocodingResult(data.results[0]);
+      console.warn('Geocoding failed:', data?.status);
+      return null;
     } catch (error) {
       console.error('Error geocoding address:', error);
       return this.getMockLocationDetails(address);
@@ -96,20 +93,15 @@ export class LocationService {
       }
 
       const url = `${this.baseUrl}/geocode/json?latlng=${lat},${lng}&key=${this.googleApiKey}`;
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Reverse geocoding API error: ${response.status}`);
-      }
+      const response = await axios.get(url);
+      const data: any = response.data;
 
-      const data = await response.json();
-      
-      if (data.status !== 'OK' || !data.results.length) {
-        console.warn('Reverse geocoding failed:', data.status);
-        return null;
+      if (data && data.results && data.results.length > 0) {
+        const result = data.results[0];
+        return this.parseGeocodingResult(result);
       }
-
-      return this.parseGeocodingResult(data.results[0]);
+      console.warn('Reverse geocoding failed:', data?.status);
+      return null;
     } catch (error) {
       console.error('Error reverse geocoding:', error);
       return this.getMockLocationDetails(`${lat}, ${lng}`);
@@ -127,29 +119,23 @@ export class LocationService {
       }
 
       const url = `${this.baseUrl}/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${this.googleApiKey}&types=establishment|geocode`;
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Places API error: ${response.status}`);
-      }
+      const response = await axios.get(url);
+      const data: any = response.data;
 
-      const data = await response.json();
-      
-      if (data.status !== 'OK') {
-        console.warn('Places autocomplete failed:', data.status);
-        return [];
-      }
-
-      const suggestions: LocationDetails[] = [];
-      
-      for (const prediction of data.predictions.slice(0, limit)) {
-        const details = await this.getPlaceDetails(prediction.place_id);
-        if (details) {
-          suggestions.push(details);
+      if (data && data.predictions && data.predictions.length > 0) {
+        const suggestions: LocationDetails[] = [];
+        
+        for (const prediction of data.predictions.slice(0, limit)) {
+          const details = await this.getPlaceDetails(prediction.place_id);
+          if (details) {
+            suggestions.push(details);
+          }
         }
-      }
 
-      return suggestions;
+        return suggestions;
+      }
+      console.warn('Places autocomplete failed:', data?.status);
+      return [];
     } catch (error) {
       console.error('Error getting location suggestions:', error);
       return this.getMockLocationSuggestions(query, limit);
@@ -166,20 +152,14 @@ export class LocationService {
       }
 
       const url = `${this.baseUrl}/place/details/json?place_id=${placeId}&key=${this.googleApiKey}&fields=formatted_address,geometry,address_components,types`;
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Place details API error: ${response.status}`);
-      }
+      const response = await axios.get(url);
+      const data: any = response.data;
 
-      const data = await response.json();
-      
-      if (data.status !== 'OK') {
-        console.warn('Place details failed:', data.status);
-        return null;
+      if (data && data.result) {
+        return this.parseGeocodingResult(data.result);
       }
-
-      return this.parseGeocodingResult(data.result);
+      console.warn('Place details failed:', data?.status);
+      return null;
     } catch (error) {
       console.error('Error getting place details:', error);
       return null;
@@ -532,20 +512,14 @@ export class LocationService {
 
       const timestamp = Math.floor(Date.now() / 1000);
       const url = `${this.baseUrl}/timezone/json?location=${lat},${lng}&timestamp=${timestamp}&key=${this.googleApiKey}`;
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Timezone API error: ${response.status}`);
-      }
+      const response = await axios.get(url);
+      const data: any = response.data;
 
-      const data = await response.json();
-      
-      if (data.status !== 'OK') {
-        console.warn('Timezone lookup failed:', data.status);
-        return null;
+      if (data && data.status === 'OK') {
+        return data.timeZoneId;
       }
-
-      return data.timeZoneId;
+      console.warn('Timezone lookup failed:', data?.status);
+      return null;
     } catch (error) {
       console.error('Error getting timezone:', error);
       return null;
