@@ -6,11 +6,14 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import passport from 'passport';
 import session from 'express-session';
+import http from 'http';
 import DatabaseManager from './config/database';
 import PassportConfig from './config/passport';
 import FirebaseManager from './config/firebase';
 import { redisManager } from './config/redis';
 import { cacheService } from './services/cacheService';
+import { SocketService } from './services/socketService';
+import { liveLocationService } from './services/liveLocationService';
 import { apiLimiter } from './middleware/rateLimit';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -25,6 +28,7 @@ import analyticsRoutes from './routes/analytics';
 import weatherRoutes from './routes/weather';
 import locationRoutes from './routes/location';
 import sharingRoutes from './routes/sharing';
+import liveLocationRoutes from './routes/liveLocation';
 
 console.log('🔥 Routes imported:', { 
   authRoutes: !!authRoutes, 
@@ -36,14 +40,19 @@ console.log('🔥 Routes imported:', {
   analyticsRoutes: !!analyticsRoutes,
   weatherRoutes: !!weatherRoutes,
   locationRoutes: !!locationRoutes,
-  sharingRoutes: !!sharingRoutes
+  sharingRoutes: !!sharingRoutes,
+  liveLocationRoutes: !!liveLocationRoutes
 });
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
+
+// Initialize Socket.IO service
+let socketService: SocketService;
 
 // Security middleware - MUST be first
 app.use(helmet({
@@ -97,6 +106,7 @@ app.get('/health', async (req, res) => {
     const dbHealth = await DatabaseManager.runHealthCheck();
     const redisHealth = await redisManager.getHealthStatus();
     const cacheStats = await cacheService.getCacheStats();
+    const locationAnalytics = await liveLocationService.getLocationAnalytics();
     
     const health = {
       status: 'healthy',
@@ -105,6 +115,14 @@ app.get('/health', async (req, res) => {
       database: dbHealth,
       redis: redisHealth,
       cache: cacheStats,
+      liveLocation: {
+        activeUsers: locationAnalytics.activeUsers,
+        totalUsers: locationAnalytics.totalUsers,
+        usersAtEvents: locationAnalytics.usersAtEvents,
+      },
+      websocket: {
+        connected: socketService ? socketService.getConnectedUsersCount() : 0,
+      },
       memory: process.memoryUsage(),
       environment: process.env.NODE_ENV || 'development',
     };
@@ -118,9 +136,6 @@ app.get('/health', async (req, res) => {
     });
   }
 });
-
-
-
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -136,6 +151,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/location', locationRoutes);
 app.use('/api/sharing', sharingRoutes);
+app.use('/api/live-location', liveLocationRoutes);
 
 // API documentation endpoint
 app.get('/api', (req, res) => {
@@ -154,7 +170,21 @@ app.get('/api', (req, res) => {
       weather: '/api/weather',
       location: '/api/location',
       sharing: '/api/sharing',
+      liveLocation: '/api/live-location',
     },
+    websocket: {
+      url: `ws://localhost:${PORT}`,
+      events: [
+        'location_update',
+        'get_nearby_users',
+        'get_event_locations',
+        'start_location_sharing',
+        'stop_location_sharing',
+        'setup_geofencing',
+        'join_room',
+        'leave_room'
+      ]
+    }
   });
 });
 
@@ -178,6 +208,12 @@ const gracefulShutdown = async (signal: string) => {
   console.log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
   
   try {
+    // Close WebSocket connections
+    if (socketService) {
+      console.log('🔌 Closing WebSocket connections...');
+      socketService.getIO().close();
+    }
+    
     await DatabaseManager.disconnect();
     await redisManager.disconnect();
     console.log('✅ Graceful shutdown completed');
@@ -212,8 +248,12 @@ const startServer = async () => {
     // Initialize Firebase for notifications
     FirebaseManager.initialize();
     
+    // Initialize Socket.IO service
+    socketService = new SocketService(server);
+    console.log('🔌 WebSocket service initialized');
+    
     // Start listening
-    app.listen(PORT, async () => {
+    server.listen(PORT, async () => {
       const cacheHealthy = await cacheService.isHealthy();
       console.log(`
 🚀 MeetOn Backend Server Started
@@ -222,6 +262,8 @@ const startServer = async () => {
 💾 Database: Connected
 🔗 Redis: ${redisManager.isHealthy() ? 'Connected' : 'Disconnected'}
 📊 Cache: ${cacheHealthy ? 'Active' : 'Inactive'}
+🔌 WebSocket: Active
+📍 Live Location: Enabled
 🔗 Health Check: http://localhost:${PORT}/health
 📚 API Documentation: http://localhost:${PORT}/api
       `);
