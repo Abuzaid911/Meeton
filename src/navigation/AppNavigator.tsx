@@ -13,6 +13,7 @@ import { Colors } from '../constants';
 import HomeScreen from '../screens/HomeScreen';
 import EventListScreen from '../screens/EventListScreen';  // New iOS-style screen
 import CreateEventScreen from '../screens/events/CreateEventScreen';
+import EditEventScreen from '../screens/events/EditEventScreen';
 import SearchScreen from '../screens/SearchScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
@@ -22,6 +23,7 @@ import EventPhotosScreen from '../screens/events/EventPhotosScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import FriendsScreen from '../screens/profile/FriendsScreen';
 import WelcomeScreen from '../screens/auth/WelcomeScreen';
+import LocationSettingsScreen from '../screens/settings/LocationSettingsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -61,6 +63,16 @@ function HomeStack() {
           title: '',
           headerTransparent: true,
           headerStyle: { backgroundColor: 'transparent' },
+        }}
+      />
+      <Stack.Screen 
+        name="EditEvent" 
+        component={EditEventScreen}
+        options={{ 
+          title: '',
+          headerTransparent: true,
+          headerStyle: { backgroundColor: 'transparent' },
+          presentation: 'modal'
         }}
       />
       <Stack.Screen 
@@ -197,6 +209,14 @@ function ProfileStack() {
         component={EditProfileScreen}
         options={{ 
           title: 'Edit Profile',
+          presentation: 'modal'
+        }}
+      />
+      <Stack.Screen 
+        name="LocationSettings" 
+        component={LocationSettingsScreen}
+        options={{ 
+          headerShown: false,
           presentation: 'modal'
         }}
       />

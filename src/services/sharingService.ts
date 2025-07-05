@@ -1,4 +1,6 @@
 import { APIService } from './api';
+import { Share, Linking } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 
 export interface InviteLink {
   id: string;
@@ -55,11 +57,32 @@ class SharingService {
    * Generate an invite link for an event
    */
   async generateInviteLink(eventId: string, options: CreateInviteLinkOptions = {}): Promise<InviteLink> {
-    const data = await APIService.generateInviteLink(eventId, options);
-    if (!data) {
-      throw new Error('Failed to generate invite link');
+    try {
+      const data = await APIService.generateInviteLink(eventId, options);
+      if (data) {
+        return data;
+      }
+    } catch (error) {
+      console.warn('Failed to generate invite link from API, using fallback:', error);
     }
-    return data;
+    
+    // Fallback: Create a basic invite link structure
+    const now = new Date();
+    const expiresAt = options.expiresIn ? new Date(now.getTime() + options.expiresIn * 60 * 60 * 1000) : null;
+    
+    return {
+      id: `fallback-${eventId}-${Date.now()}`,
+      eventId,
+      token: `fallback-token-${Date.now()}`,
+      createdBy: 'current-user',
+      expiresAt,
+      maxUses: options.maxUses || null,
+      currentUses: 0,
+      isActive: true,
+      customMessage: options.customMessage || null,
+      createdAt: now,
+      url: `https://meeton-backend.onrender.com/events/${eventId}`
+    };
   }
 
   /**
@@ -116,11 +139,39 @@ class SharingService {
    * Get share content for an event
    */
   async getShareContent(eventId: string, platform?: string): Promise<ShareContent> {
-    const data = await APIService.getShareContent(eventId, platform);
-    if (!data) {
-      throw new Error('Failed to get share content');
+    try {
+      const data = await APIService.getShareContent(eventId, platform);
+      if (data) {
+        return data;
+      }
+    } catch (error) {
+      console.warn('Failed to get share content from API, using fallback:', error);
     }
-    return data;
+    
+    // Fallback: Create basic share content
+    try {
+      const event = await APIService.getEventById(eventId);
+      if (event) {
+        const eventDate = new Date(event.date).toLocaleDateString();
+        return {
+          title: event.name,
+          description: `Join me at ${event.name} on ${eventDate} at ${event.location}!`,
+          url: `https://meeton-backend.onrender.com/events/${eventId}`,
+          imageUrl: event.headerImageUrl || undefined,
+          hashtags: ['MeetOn', 'Event']
+        };
+      }
+    } catch (error) {
+      console.error('Failed to get event details for fallback:', error);
+    }
+    
+    // Final fallback
+    return {
+      title: 'Join my event!',
+      description: 'You\'re invited to an awesome event. Check it out!',
+      url: `https://meeton-backend.onrender.com/events/${eventId}`,
+      hashtags: ['MeetOn', 'Event']
+    };
   }
 
   /**
@@ -135,10 +186,18 @@ class SharingService {
    * Generate QR code for event
    */
   async generateQRCode(eventId: string): Promise<string> {
-    const qrCodeUrl = await APIService.generateQRCode(eventId);
-    if (!qrCodeUrl) {
-      throw new Error('Failed to generate QR code');
+    try {
+      const qrCodeUrl = await APIService.generateQRCode(eventId);
+      if (qrCodeUrl) {
+        return qrCodeUrl;
+      }
+    } catch (error) {
+      console.warn('Failed to generate QR code from API, using fallback:', error);
     }
+    
+    // Fallback: Use a QR code service
+    const eventUrl = `https://meeton-backend.onrender.com/events/${eventId}`;
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(eventUrl)}`;
     return qrCodeUrl;
   }
 
@@ -171,9 +230,6 @@ class SharingService {
     try {
       const shareContent = await this.getShareContent(eventId);
       
-      // Use React Native Share API
-      const { Share } = await import('react-native');
-      
       const shareOptions = {
         title: shareContent.title,
         message: `${shareContent.description}\n\n${shareContent.url}`,
@@ -194,9 +250,7 @@ class SharingService {
     try {
       const shareContent = await this.getShareContent(eventId);
       
-      // Use Expo Clipboard
-      const Clipboard = await import('expo-clipboard');
-      await Clipboard.setStringAsync(shareContent.url);
+      await Clipboard.setString(shareContent.url);
       
       return shareContent.url;
     } catch (error) {
@@ -210,8 +264,6 @@ class SharingService {
    */
   async openShareUrl(shareUrl: string): Promise<void> {
     try {
-      const { Linking } = await import('react-native');
-      
       const canOpen = await Linking.canOpenURL(shareUrl);
       if (canOpen) {
         await Linking.openURL(shareUrl);

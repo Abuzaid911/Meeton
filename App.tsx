@@ -3,8 +3,31 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import * as Linking from 'expo-linking';
-import { AuthProvider } from './src/contexts/AuthContext';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { LocationProvider } from './src/contexts/LocationContext';
 import AppNavigator from './src/navigation/AppNavigator';
+
+// Wrapper component to access auth context
+function AppWithLocation() {
+  const { user } = useAuth();
+
+  return (
+    <>
+      {user ? (
+        <LocationProvider currentUser={user}>
+          <BottomSheetModalProvider>
+            <AppNavigator />
+          </BottomSheetModalProvider>
+        </LocationProvider>
+      ) : (
+        <BottomSheetModalProvider>
+          <AppNavigator />
+        </BottomSheetModalProvider>
+      )}
+      <StatusBar style="auto" />
+    </>
+  );
+}
 
 export default function App() {
   useEffect(() => {
@@ -28,10 +51,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <BottomSheetModalProvider>
-          <AppNavigator />
-        </BottomSheetModalProvider>
-        <StatusBar style="auto" />
+        <AppWithLocation />
       </AuthProvider>
     </GestureHandlerRootView>
   );

@@ -1529,13 +1529,32 @@ export class APIService {
   }
 
   // ============================================================================
+  // Public API Methods for External Services
+  // ============================================================================
+
+  /**
+   * Public makeRequest method for use by other services
+   */
+  static async makeRequest<T>(
+    endpoint: string,
+    options: {
+      method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+      body?: any;
+      requireAuth?: boolean;
+      action?: string;
+    } = {}
+  ): Promise<APIResponse<T>> {
+    return this.makeRequestInternal<T>(endpoint, options);
+  }
+
+  // ============================================================================
   // Private Helper Methods
   // ============================================================================
 
   /**
    * Make HTTP request to backend API with enhanced session management
    */
-  private static async makeRequest<T>(
+  private static async makeRequestInternal<T>(
     endpoint: string,
     options: {
       method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -1596,7 +1615,7 @@ export class APIService {
         if (refreshed) {
           console.log('✅ Token refreshed, retrying request...');
           // Retry request with new token and increment retry count
-          return this.makeRequest<T>(endpoint, { 
+          return this.makeRequestInternal<T>(endpoint, { 
             ...options, 
             retryCount: retryCount + 1,
             // Allow one more retry attempt after refresh
@@ -1650,7 +1669,7 @@ export class APIService {
             const refreshed = await this.refreshAccessToken();
             if (refreshed) {
               console.log('✅ Token refreshed after session error, retrying request...');
-              return this.makeRequest<T>(endpoint, { 
+              return this.makeRequestInternal<T>(endpoint, { 
                 ...options, 
                 retryCount: retryCount + 1,
                 retryOnTokenRefresh: false // No more retries after this

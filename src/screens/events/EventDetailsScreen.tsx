@@ -24,8 +24,14 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../constants';
 import { Event, User, RSVP } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLocation } from '../../contexts/LocationContext';
 import APIService from '../../services/api';
 import EventPhotosGallery from '../../components/events/EventPhotosGallery';
+import { LocationSharingComponent } from '../../components/location/LocationSharingComponent';
+import { NearbyUsersComponent } from '../../components/location/NearbyUsersComponent';
+import { LocationMapComponent } from '../../components/location/LocationMapComponent';
+import { LiveLocationService } from '../../services/liveLocationService';
+import { sharingService } from '../../services/sharingService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -229,14 +235,16 @@ const EventDetailsScreen: React.FC = () => {
   };
 
   const handleEditEvent = () => {
-    // Navigate to edit event screen (you can create this later)
-    Alert.alert('Edit Event', 'Edit functionality will be implemented here. You can navigate to an edit screen.');
+    if (!event) return;
+    navigation.navigate('EditEvent', { eventId: event.id });
   };
 
-  const handleDeleteEvent = () => {
+  const handleDeleteEvent = async () => {
+    if (!event) return;
+    
     Alert.alert(
       'Delete Event',
-      'Are you sure you want to delete this event? This action cannot be undone.',
+      'Are you sure you want to delete this event? This action cannot be undone and will remove the event for all attendees.',
       [
         {
           text: 'Cancel',
@@ -245,22 +253,111 @@ const EventDetailsScreen: React.FC = () => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            // In a real app, you would call an API to delete the event
-            Alert.alert('Event Deleted', 'Your event has been deleted successfully.', [
-              {
-                text: 'OK',
-                onPress: () => navigation.navigate('Home'),
+          onPress: async () => {
+            try {
+              const success = await APIService.deleteEvent(event.id);
+              if (success) {
+                Alert.alert('Event Deleted', 'Your event has been deleted successfully.', [
+                  {
+                    text: 'OK',
+                    onPress: () => navigation.navigate('Home'),
+                  }
+                ]);
+              } else {
+                Alert.alert('Error', 'Failed to delete event. Please try again.');
               }
-            ]);
+            } catch (error) {
+              console.error('Delete event error:', error);
+              Alert.alert('Error', 'Failed to delete event. Please try again.');
+            }
           },
         },
       ]
     );
   };
 
-  const handleShareEvent = () => {
-    Alert.alert('Share Event', 'Event sharing functionality will be implemented here.');
+  const handleShareEvent = async () => {
+    if (!event) return;
+    
+    const shareOptions = [
+      { title: 'Share Link', action: 'link' },
+      { title: 'Copy Link', action: 'copy' },
+      { title: 'Generate QR Code', action: 'qr' },
+      { title: 'Create Invite Link', action: 'invite' },
+      { title: 'Cancel', action: 'cancel' }
+    ];
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: shareOptions.map(option => option.title),
+          cancelButtonIndex: shareOptions.length - 1,
+          title: 'Share Event',
+        },
+        async (buttonIndex) => {
+          const selectedOption = shareOptions[buttonIndex];
+          if (selectedOption?.action === 'cancel') return;
+
+          try {
+            switch (selectedOption?.action) {
+              case 'link':
+                await sharingService.shareToNative(event.id);
+                break;
+              case 'copy':
+                const copiedLink = await sharingService.copyShareLink(event.id);
+                Alert.alert('Success', 'Event link copied to clipboard!');
+                break;
+              case 'qr':
+                try {
+                  const qrCodeUrl = await sharingService.generateQRCode(event.id);
+                  Alert.alert('QR Code', 'QR code generated successfully!', [
+                    { text: 'OK' }
+                  ]);
+                } catch (error) {
+                  Alert.alert('Error', 'Failed to generate QR code. Please try again.');
+                }
+                break;
+              case 'invite':
+                try {
+                  const inviteLink = await sharingService.generateInviteLink(event.id, {
+                    expiresIn: 168, // 7 days
+                    maxUses: 50
+                  });
+                  Alert.alert('Invite Link Created', `Your invite link is ready! It expires in 7 days and can be used up to 50 times.`, [
+                    { text: 'Copy Link', onPress: () => sharingService.copyShareLink(event.id) },
+                    { text: 'Share', onPress: () => sharingService.shareToNative(event.id) },
+                    { text: 'OK' }
+                  ]);
+                } catch (error) {
+                  Alert.alert('Error', 'Failed to create invite link. Please try again.');
+                }
+                break;
+            }
+          } catch (error) {
+            console.error('Share error:', error);
+            Alert.alert('Error', 'Failed to share event. Please try again.');
+          }
+        }
+      );
+    } else {
+      // Android - show custom modal with sharing options
+      Alert.alert(
+        'Share Event',
+        'How would you like to share this event?',
+        [
+          { text: 'Share Link', onPress: () => sharingService.shareToNative(event.id) },
+          { text: 'Copy Link', onPress: async () => {
+            try {
+              await sharingService.copyShareLink(event.id);
+              Alert.alert('Success', 'Event link copied to clipboard!');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to copy link. Please try again.');
+            }
+          }},
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    }
   };
 
   const handleReportEvent = () => {
