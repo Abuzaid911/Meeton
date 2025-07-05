@@ -283,6 +283,36 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     );
   };
 
+  const handleCancelFriendRequest = async () => {
+    if (!userId) return;
+    
+    Alert.alert(
+      'Cancel Friend Request',
+      `Are you sure you want to cancel your friend request to ${profileUser?.name}?`,
+      [
+        { text: 'Keep Request', style: 'cancel' },
+        {
+          text: 'Cancel Request',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const success = await APIService.cancelFriendRequest(userId);
+              if (success) {
+                Alert.alert('Success', 'Friend request cancelled');
+                setFriendshipStatus({ status: 'NONE' });
+              } else {
+                Alert.alert('Error', 'Failed to cancel friend request');
+              }
+            } catch (error) {
+              console.error('Error cancelling friend request:', error);
+              Alert.alert('Error', 'Failed to cancel friend request');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const getFriendButtonConfig = () => {
     if (!friendshipStatus) {
       return {
@@ -301,8 +331,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         };
       case 'PENDING_SENT':
         return {
-          title: 'Request Sent',
-          onPress: () => {},
+          title: 'Cancel Request',
+          onPress: handleCancelFriendRequest,
           style: 'secondary'
         };
       case 'PENDING_RECEIVED':
@@ -665,6 +695,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                         <TouchableOpacity 
                           style={[
                             styles.friendshipButton,
+                            styles.friendshipButtonFullWidth,
                             friendshipStatus?.status === 'FRIENDS' 
                               ? styles.friendshipButtonSuccess
                               : friendshipStatus?.status === 'PENDING_SENT'
@@ -672,21 +703,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                               : styles.friendshipButtonPrimary
                           ]}
                           onPress={getFriendButtonConfig().onPress}
-                          disabled={friendshipStatus?.status === 'PENDING_SENT'}
                         >
                           <BlurView intensity={80} style={styles.friendshipButtonBlur}>
                             <Text style={styles.friendshipButtonText}>
                               {getFriendButtonConfig().title}
                             </Text>
-                          </BlurView>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                          style={styles.messageButton}
-                          onPress={() => Alert.alert('Coming Soon', 'Messaging will be available soon.')}
-                        >
-                          <BlurView intensity={80} style={styles.messageButtonBlur}>
-                            <Ionicons name="chatbubble-outline" size={20} color={Colors.white} />
                           </BlurView>
                         </TouchableOpacity>
                       </>
@@ -757,20 +778,22 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 4,
+    borderColor: Colors.white,
   },
   avatarRing: {
     position: 'absolute',
-    top: -4,
-    left: -4,
-    right: -4,
-    bottom: -4,
-    borderRadius: 54,
+    top: -6,
+    left: -6,
+    right: -6,
+    bottom: -6,
+    borderRadius: 66,
     borderWidth: 3,
     borderColor: Colors.primary,
-    opacity: 0.8,
+    opacity: 0.9,
   },
   editAvatarButton: {
     position: 'absolute',
@@ -1014,6 +1037,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     minWidth: 120,
+  },
+  friendshipButtonFullWidth: {
+    flex: 0,
+    width: '100%',
   },
   friendshipButtonPrimary: {
     backgroundColor: 'rgba(0, 122, 255, 0.2)',

@@ -5,7 +5,7 @@
 
 // Determine if we're in development or production
 // Set FORCE_PRODUCTION to true to test production API in development
-const FORCE_PRODUCTION = true; // Change to true to test production API
+const FORCE_PRODUCTION = false; // Change to true to test production API
 const isDev = FORCE_PRODUCTION ? false : (__DEV__ || process.env.NODE_ENV === 'development');
 
 // API Base URLs for different environments

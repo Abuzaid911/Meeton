@@ -1,7 +1,16 @@
-import messaging from '@react-native-firebase/messaging';
 import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APIService } from './api';
+
+// Conditional import to prevent module errors
+let messaging: any = null;
+
+try {
+  const firebaseMessaging = require('@react-native-firebase/messaging');
+  messaging = firebaseMessaging.default;
+} catch (error) {
+  console.warn('⚠️ Firebase Messaging module not available, notifications will be disabled');
+}
 
 /**
  * Firebase Notification Service for React Native
@@ -24,6 +33,11 @@ class NotificationService {
   async initialize(): Promise<void> {
     try {
       if (this.isInitialized) {
+        return;
+      }
+
+      if (!messaging) {
+        console.log('⚠️ Firebase Messaging not available, notifications disabled');
         return;
       }
 
@@ -54,6 +68,10 @@ class NotificationService {
    */
   private async requestPermission(): Promise<boolean> {
     try {
+      if (!messaging) {
+        return false;
+      }
+      
       const authStatus = await messaging().requestPermission();
       
       const enabled =
@@ -89,6 +107,10 @@ class NotificationService {
    */
   private async getFCMToken(): Promise<void> {
     try {
+      if (!messaging) {
+        return;
+      }
+      
       const token = await messaging().getToken();
       
       if (token) {
@@ -102,7 +124,7 @@ class NotificationService {
         await this.registerTokenWithBackend(token);
         
         // Listen for token refresh
-        messaging().onTokenRefresh(async (newToken) => {
+        messaging().onTokenRefresh(async (newToken: string) => {
           console.log('🔄 FCM Token refreshed');
           this.fcmToken = newToken;
           await AsyncStorage.setItem('fcm_token', newToken);
@@ -153,14 +175,18 @@ class NotificationService {
    * Set up notification listeners
    */
   private setupNotificationListeners(): void {
+    if (!messaging) {
+      return;
+    }
+    
     // Handle notification when app is in background/quit
-    messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+    messaging().setBackgroundMessageHandler(async (remoteMessage: any) => {
       console.log('📱 Background notification received:', remoteMessage);
       // Background notifications are handled by the system
     });
 
     // Handle notification when app is in foreground
-    messaging().onMessage(async (remoteMessage) => {
+    messaging().onMessage(async (remoteMessage: any) => {
       console.log('📱 Foreground notification received:', remoteMessage);
       
       if (this.handlers.onNotificationReceived) {
@@ -172,7 +198,7 @@ class NotificationService {
     });
 
     // Handle notification opening (app launched from notification)
-    messaging().onNotificationOpenedApp((remoteMessage) => {
+    messaging().onNotificationOpenedApp((remoteMessage: any) => {
       console.log('📱 App opened from notification:', remoteMessage);
       
       if (this.handlers.onNotificationOpened) {
@@ -183,7 +209,7 @@ class NotificationService {
     // Handle initial notification (app launched from quit state)
     messaging()
       .getInitialNotification()
-      .then((remoteMessage) => {
+      .then((remoteMessage: any) => {
         if (remoteMessage) {
           console.log('📱 App launched from notification:', remoteMessage);
           
@@ -227,6 +253,10 @@ class NotificationService {
     }
 
     try {
+      if (!messaging) {
+        return null;
+      }
+      
       const storedToken = await AsyncStorage.getItem('fcm_token');
       if (storedToken) {
         this.fcmToken = storedToken;
@@ -304,6 +334,10 @@ class NotificationService {
    */
   async isEnabled(): Promise<boolean> {
     try {
+      if (!messaging) {
+        return false;
+      }
+      
       const authStatus = await messaging().hasPermission();
       return (
         authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
@@ -320,7 +354,7 @@ class NotificationService {
    */
   async getBadgeCount(): Promise<number> {
     try {
-      if (Platform.OS === 'ios') {
+      if (Platform.OS === 'ios' && messaging) {
         return await messaging().getAPNSToken() ? 0 : 0; // Placeholder
       }
       return 0;

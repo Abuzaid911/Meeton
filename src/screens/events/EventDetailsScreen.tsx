@@ -1066,13 +1066,7 @@ const EventDetailsScreen: React.FC = () => {
                         </TouchableOpacity>
                       )}
                       
-                      <TouchableOpacity
-                        style={[styles.userProfileActionButton, styles.userProfileActionButtonSecondary]}
-                        onPress={handleSendMessage}
-                      >
-                        <Ionicons name="chatbubble" size={20} color={Colors.white} />
-                        <Text style={styles.userProfileActionText}>Message</Text>
-                      </TouchableOpacity>
+
                     </View>
                     
                     <TouchableOpacity

@@ -250,7 +250,7 @@ class ImageService {
 
       // Upload via API
       const response = await this.uploadWithProgress(
-        '/api/images/profile',
+        '/images/profile',
         formData,
         onProgress
       );
@@ -262,6 +262,50 @@ class ImageService {
       return response.data as ImageUploadResult;
     } catch (error) {
       console.error('Profile image upload failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Upload generic image (for creation flows without specific entity IDs)
+   */
+  static async uploadGenericImage(
+    uri: string,
+    imageType: ImageType,
+    onProgress?: (progress: ImageUploadProgress) => void
+  ): Promise<ImageUploadResult> {
+    try {
+      // Validate image
+      await this.validateImage(uri);
+
+      // Compress image
+      const compressedImage = await this.compressImage(uri, imageType);
+
+      // Create FormData
+      const formData = new FormData();
+      const fileName = `${imageType}.jpg`;
+      formData.append('image', {
+        uri: compressedImage.uri,
+        type: 'image/jpeg',
+        name: fileName,
+      } as any);
+
+      formData.append('imageType', imageType);
+
+      // Upload via generic API endpoint
+      const response = await this.uploadWithProgress(
+        '/images/upload',
+        formData,
+        onProgress
+      );
+
+      if (!response.success) {
+        throw new Error(response.error?.message || `Failed to upload ${imageType} image`);
+      }
+
+      return response.data as ImageUploadResult;
+    } catch (error) {
+      console.error(`${imageType} image upload failed:`, error);
       throw error;
     }
   }

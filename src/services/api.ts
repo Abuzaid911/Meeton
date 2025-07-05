@@ -226,6 +226,7 @@ export class APIService {
       if (this.refreshToken) {
         console.log('🔑 Refresh token found, attempting to get fresh access token...');
         console.log('🔑 Refresh token length:', this.refreshToken.length);
+        console.log('🔑 Refresh token preview:', this.refreshToken.substring(0, 20) + '...');
         
         // Try to get a fresh access token using the refresh token
         const refreshSuccess = await this.refreshAccessToken();
@@ -253,6 +254,8 @@ export class APIService {
   static async storeTokens(tokens: AuthTokens): Promise<void> {
     try {
       console.log('🔐 Storing tokens securely...');
+      console.log('🔐 Access token length:', tokens.accessToken.length);
+      console.log('🔐 Refresh token length:', tokens.refreshToken.length);
       
       // Store access token in memory only
       this.accessToken = tokens.accessToken;
@@ -262,6 +265,14 @@ export class APIService {
       this.refreshToken = tokens.refreshToken;
       
       console.log('✅ Tokens stored successfully');
+      
+      // Verify storage by reading back
+      const storedRefreshToken = await SecureStore.getItemAsync(SECURE_STORE_KEYS.REFRESH_TOKEN);
+      if (storedRefreshToken === tokens.refreshToken) {
+        console.log('✅ Refresh token storage verified');
+      } else {
+        console.log('❌ Refresh token storage verification failed');
+      }
     } catch (error) {
       console.error('❌ Failed to store tokens:', error);
       throw error;
@@ -449,11 +460,26 @@ export class APIService {
     try {
       console.log('🔄 Attempting to refresh access token...');
       console.log('🔄 Current refresh token available:', !!this.refreshToken);
+      console.log('🔄 Refresh token length:', this.refreshToken?.length || 0);
       
+      if (!this.refreshToken) {
+        console.log('❌ No refresh token available for refresh');
+        await this.handleSessionExpiry('No refresh token available');
+        return false;
+      }
+      
+      console.log('🔄 Making refresh request to backend...');
       const response = await this.makeRequest<AuthTokens>('/auth/refresh', {
         method: 'POST',
         body: { refreshToken: this.refreshToken },
         requireAuth: false,
+      });
+
+      console.log('🔄 Refresh response received:', {
+        success: response.success,
+        hasData: !!response.data,
+        errorCode: response.error?.code,
+        errorMessage: response.error?.message,
       });
 
       if (response.success && response.data) {
@@ -1165,6 +1191,24 @@ export class APIService {
     }
   }
 
+  /**
+   * Cancel a sent friend request
+   */
+  static async cancelFriendRequest(userId: string): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<any>(`/friends/request/${userId}`, {
+        method: 'DELETE',
+        requireAuth: true,
+        action: 'cancel friend request',
+      });
+
+      return response.success;
+    } catch (error) {
+      console.error('Failed to cancel friend request:', error);
+      return false;
+    }
+  }
+
   // ============================================================================
   // Notification API Methods
   // ============================================================================
@@ -1324,6 +1368,170 @@ export class APIService {
     }
   }
 
+  // ============================================================================
+  // Sharing Methods
+  // ============================================================================
+
+  /**
+   * Generate an invite link for an event
+   */
+  static async generateInviteLink(eventId: string, options: {
+    expiresIn?: number;
+    maxUses?: number;
+    customMessage?: string;
+  } = {}): Promise<any> {
+    const response = await this.makeRequest(`/sharing/events/${eventId}/invite-links`, {
+      method: 'POST',
+      body: options,
+      requireAuth: true,
+      action: 'generate invite link',
+    });
+
+    return response.success ? response.data : null;
+  }
+
+  /**
+   * Get invite link by token
+   */
+  static async getInviteLink(token: string): Promise<any> {
+    const response = await this.makeRequest(`/sharing/invite/${token}`, {
+      method: 'GET',
+      requireAuth: false,
+      action: 'get invite link',
+    });
+
+    return response.success ? response.data : null;
+  }
+
+  /**
+   * Use an invite link
+   */
+  static async useInviteLink(token: string): Promise<boolean> {
+    const response = await this.makeRequest(`/sharing/invite/${token}/use`, {
+      method: 'POST',
+      requireAuth: false,
+      action: 'use invite link',
+    });
+
+    return response.success;
+  }
+
+  /**
+   * Get all invite links for an event
+   */
+  static async getEventInviteLinks(eventId: string): Promise<any[]> {
+    const response = await this.makeRequest(`/sharing/events/${eventId}/invite-links`, {
+      method: 'GET',
+      requireAuth: true,
+      action: 'get invite links',
+    });
+
+    return response.success && Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Deactivate an invite link
+   */
+  static async deactivateInviteLink(linkId: string): Promise<boolean> {
+    const response = await this.makeRequest(`/sharing/invite-links/${linkId}`, {
+      method: 'DELETE',
+      requireAuth: true,
+      action: 'deactivate invite link',
+    });
+
+    return response.success;
+  }
+
+  /**
+   * Generate share URL for a platform
+   */
+  static async generateShareUrl(eventId: string, platform: string): Promise<string | null> {
+    const response = await this.makeRequest(`/sharing/events/${eventId}/share/${platform}`, {
+      method: 'GET',
+      requireAuth: false,
+      action: 'generate share URL',
+    });
+
+    return response.success && response.data && typeof response.data === 'object' 
+      ? (response.data as any).shareUrl || null 
+      : null;
+  }
+
+  /**
+   * Get share content for an event
+   */
+  static async getShareContent(eventId: string, platform?: string): Promise<any> {
+    const endpoint = platform 
+      ? `/sharing/events/${eventId}/content?platform=${encodeURIComponent(platform)}`
+      : `/sharing/events/${eventId}/content`;
+      
+    const response = await this.makeRequest(endpoint, {
+      method: 'GET',
+      requireAuth: false,
+      action: 'get share content',
+    });
+
+    return response.success ? response.data : null;
+  }
+
+  /**
+   * Get available social platforms
+   */
+  static async getSocialPlatforms(): Promise<any[]> {
+    const response = await this.makeRequest('/sharing/platforms', {
+      method: 'GET',
+      requireAuth: false,
+      action: 'get social platforms',
+    });
+
+    return response.success && Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Generate QR code for event
+   */
+  static async generateQRCode(eventId: string): Promise<string | null> {
+    const response = await this.makeRequest(`/sharing/events/${eventId}/qr-code`, {
+      method: 'GET',
+      requireAuth: false,
+      action: 'generate QR code',
+    });
+
+    return response.success && response.data && typeof response.data === 'object'
+      ? (response.data as any).qrCodeUrl || null
+      : null;
+  }
+
+  /**
+   * Get sharing analytics for an event
+   */
+  static async getSharingStats(eventId: string): Promise<any> {
+    const response = await this.makeRequest(`/sharing/events/${eventId}/stats`, {
+      method: 'GET',
+      requireAuth: true,
+      action: 'get sharing stats',
+    });
+
+    return response.success ? response.data : null;
+  }
+
+  /**
+   * Get event summary for sharing
+   */
+  static async getEventSummary(eventId: string): Promise<any> {
+    const response = await this.makeRequest(`/sharing/events/${eventId}/summary`, {
+      method: 'GET',
+      requireAuth: false,
+      action: 'get event summary',
+    });
+
+    return response.success ? response.data : null;
+  }
+
+  // ============================================================================
+  // Private Helper Methods
+  // ============================================================================
+
   /**
    * Make HTTP request to backend API with enhanced session management
    */
@@ -1334,6 +1542,7 @@ export class APIService {
       body?: any;
       requireAuth?: boolean;
       retryOnTokenRefresh?: boolean;
+      retryCount?: number; // Track retry attempts
       action?: string; // For user-friendly error messages
     } = {}
   ): Promise<APIResponse<T>> {
@@ -1342,6 +1551,7 @@ export class APIService {
       body,
       requireAuth = false,
       retryOnTokenRefresh = true,
+      retryCount = 0,
       action,
     } = options;
 
@@ -1379,14 +1589,19 @@ export class APIService {
       console.log(`📡 Response status: ${response.status} for ${endpoint}`);
       
       // Handle 401 Unauthorized - try to refresh token
-      if (response.status === 401 && requireAuth && retryOnTokenRefresh) {
-        console.log('🔒 Received 401, attempting token refresh...');
+      if (response.status === 401 && requireAuth && retryOnTokenRefresh && retryCount < 2) {
+        console.log(`🔒 Received 401, attempting token refresh... (retry ${retryCount + 1}/2)`);
         
         const refreshed = await this.refreshAccessToken();
         if (refreshed) {
           console.log('✅ Token refreshed, retrying request...');
-          // Retry request with new token
-          return this.makeRequest<T>(endpoint, { ...options, retryOnTokenRefresh: false });
+          // Retry request with new token and increment retry count
+          return this.makeRequest<T>(endpoint, { 
+            ...options, 
+            retryCount: retryCount + 1,
+            // Allow one more retry attempt after refresh
+            retryOnTokenRefresh: retryCount < 1 
+          });
         } else {
           console.log('❌ Token refresh failed, session expired');
           // Session is expired, don't return generic error
@@ -1414,18 +1629,45 @@ export class APIService {
 
         // Check if this is a session-related error
         if (this.isSessionExpiredError(error)) {
-          console.log('🔒 Detected session expired error');
-          await this.handleSessionExpiry(error.message);
+          console.log(`🔒 Detected session expired error (retry count: ${retryCount})`);
           
-          return {
-            success: false,
-            error: {
-              ...error,
-              message: this.getUserFriendlyErrorMessage(error, action),
-            },
-            sessionExpired: true,
-            requiresLogin: true,
-          } as EnhancedAPIResponse<T>;
+          // Only trigger session expiry if we've already tried refreshing
+          if (retryCount > 0) {
+            await this.handleSessionExpiry(error.message);
+            
+            return {
+              success: false,
+              error: {
+                ...error,
+                message: this.getUserFriendlyErrorMessage(error, action),
+              },
+              sessionExpired: true,
+              requiresLogin: true,
+            } as EnhancedAPIResponse<T>;
+          } else {
+            // First attempt - try to refresh token
+            console.log('🔄 First 401 error, attempting token refresh...');
+            const refreshed = await this.refreshAccessToken();
+            if (refreshed) {
+              console.log('✅ Token refreshed after session error, retrying request...');
+              return this.makeRequest<T>(endpoint, { 
+                ...options, 
+                retryCount: retryCount + 1,
+                retryOnTokenRefresh: false // No more retries after this
+              });
+            } else {
+              await this.handleSessionExpiry(error.message);
+              return {
+                success: false,
+                error: {
+                  ...error,
+                  message: this.getUserFriendlyErrorMessage(error, action),
+                },
+                sessionExpired: true,
+                requiresLogin: true,
+              } as EnhancedAPIResponse<T>;
+            }
+          }
         }
 
         return {

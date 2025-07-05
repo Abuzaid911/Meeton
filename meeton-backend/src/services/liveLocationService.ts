@@ -73,6 +73,13 @@ export class LiveLocationService {
   }
 
   /**
+   * Set Socket.IO instance for real-time updates
+   */
+  setSocketIO(io: SocketIOServer): void {
+    this.io = io;
+  }
+
+  /**
    * Update user's live location
    */
   async updateLocation(data: LocationUpdate): Promise<void> {

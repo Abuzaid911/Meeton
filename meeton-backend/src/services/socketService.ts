@@ -53,7 +53,7 @@ export class SocketService {
     this.setupEventHandlers();
     
     // Initialize live location service with socket.io instance
-    liveLocationService.constructor(this.io);
+    liveLocationService.setSocketIO(this.io);
   }
 
   /**

@@ -90,6 +90,14 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         case ImageType.PROFILE:
           result = await ImageService.uploadProfileImage(uri, handleProgress);
           break;
+        case ImageType.EVENT_HEADER:
+          // For event creation, we'll upload to a generic endpoint and store the URL
+          result = await ImageService.uploadGenericImage(uri, imageType, handleProgress);
+          break;
+        case ImageType.EVENT_PHOTO:
+          // For standalone photo uploads without event context
+          result = await ImageService.uploadGenericImage(uri, imageType, handleProgress);
+          break;
         default:
           throw new Error('Unsupported image type for this component');
       }

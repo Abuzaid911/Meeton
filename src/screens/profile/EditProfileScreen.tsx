@@ -79,9 +79,19 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
       await updateUser(updateData);
       
       Alert.alert(
-        'Success',
-        'Your profile has been updated successfully!',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
+        'Profile Updated! 🎉',
+        'Your profile has been updated successfully and is now visible to other users.',
+        [
+          { 
+            text: 'Great!', 
+            onPress: () => navigation.goBack(),
+            style: 'default'
+          }
+        ],
+        { 
+          cancelable: false,
+          userInterfaceStyle: 'dark'
+        }
       );
     } catch (error) {
       console.error('Profile update error:', error);
@@ -94,12 +104,20 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
     }
   };
 
-  const handleImageUpload = (imageUrl: string) => {
+  const handleImageUpload = async (imageUrl: string) => {
     // Update the form data with the new image URL
     setFormData(prev => ({
       ...prev,
       image: imageUrl,
     }));
+
+    // Also update the auth context so the user data is refreshed throughout the app
+    try {
+      await updateUser({ image: imageUrl });
+    } catch (error) {
+      console.error('Failed to update user context with new image:', error);
+      // Don't show error to user as the upload succeeded, just log it
+    }
   };
 
   const handleImageError = (error: string) => {
@@ -181,77 +199,76 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
               placeholder="Upload profile photo"
               style={styles.imageUploader}
             />
+            <Text style={styles.photoSectionTitle}>Profile Photo</Text>
+            <Text style={styles.photoSectionSubtitle}>
+              Choose a photo that represents you. This will be visible to other users.
+            </Text>
           </View>
 
           {/* Form Fields */}
           <View style={styles.formSection}>
-            <InputField
-              label="Full Name"
-              value={formData.name || ''}
-              onChangeText={(text) => handleInputChange('name', text)}
-              placeholder="Enter your full name"
-              maxLength={50}
-            />
+            {/* Personal Information Section */}
+            <View style={styles.sectionContainer}>
+              <Text style={styles.sectionTitle}>Personal Information</Text>
+              
+              <InputField
+                label="Full Name"
+                value={formData.name || ''}
+                onChangeText={(text) => handleInputChange('name', text)}
+                placeholder="Enter your full name"
+                maxLength={50}
+              />
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Username</Text>
-              <BlurView intensity={60} style={styles.inputBlur}>
-                <TextInput
-                  style={[styles.input, styles.disabledInput]}
-                  value={formData.username || ''}
-                  placeholder="Username cannot be changed"
-                  placeholderTextColor="rgba(255, 255, 255, 0.3)"
-                  editable={false}
-                />
-              </BlurView>
-              <Text style={styles.helperText}>Username cannot be changed after account creation</Text>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Username</Text>
+                <BlurView intensity={60} style={styles.inputBlur}>
+                  <TextInput
+                    style={[styles.input, styles.disabledInput]}
+                    value={formData.username || ''}
+                    placeholder="Username cannot be changed"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    editable={false}
+                  />
+                </BlurView>
+                <Text style={styles.helperText}>Username cannot be changed after account creation</Text>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Email</Text>
+                <BlurView intensity={60} style={styles.inputBlur}>
+                  <TextInput
+                    style={[styles.input, styles.disabledInput]}
+                    value={formData.email || ''}
+                    placeholder="Email cannot be changed"
+                    placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                    editable={false}
+                  />
+                </BlurView>
+                <Text style={styles.helperText}>Contact support to change your email address</Text>
+              </View>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Email</Text>
-              <BlurView intensity={60} style={styles.inputBlur}>
-                <TextInput
-                  style={[styles.input, styles.disabledInput]}
-                  value={formData.email || ''}
-                  placeholder="Email cannot be changed"
-                  placeholderTextColor="rgba(255, 255, 255, 0.3)"
-                  editable={false}
-                />
-              </BlurView>
-              <Text style={styles.helperText}>Contact support to change your email address</Text>
+            {/* Profile Details Section */}
+            <View style={styles.sectionContainer}>
+              <Text style={styles.sectionTitle}>Profile Details</Text>
+              
+              <InputField
+                label="Bio"
+                value={formData.bio || ''}
+                onChangeText={(text) => handleInputChange('bio', text)}
+                placeholder="Tell us about yourself..."
+                multiline={true}
+                maxLength={150}
+              />
+
+              <InputField
+                label="Location"
+                value={formData.location || ''}
+                onChangeText={(text) => handleInputChange('location', text)}
+                placeholder="City, State"
+                maxLength={100}
+              />
             </View>
-
-            <InputField
-              label="Bio"
-              value={formData.bio || ''}
-              onChangeText={(text) => handleInputChange('bio', text)}
-              placeholder="Tell us about yourself..."
-              multiline={true}
-              maxLength={150}
-            />
-
-            <InputField
-              label="Location"
-              value={formData.location || ''}
-              onChangeText={(text) => handleInputChange('location', text)}
-              placeholder="City, State"
-              maxLength={100}
-            />
-
-
-          </View>
-
-
-
-          {/* Danger Zone */}
-          <View style={styles.dangerSection}>
-            <Text style={styles.sectionTitle}>Account</Text>
-            <BlurView intensity={60} style={styles.dangerContainer}>
-              <TouchableOpacity style={styles.dangerButton}>
-                <Ionicons name="trash-outline" size={20} color={Colors.systemRed} />
-                <Text style={styles.dangerButtonText}>Delete Account</Text>
-              </TouchableOpacity>
-            </BlurView>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -268,6 +285,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 44 : 20,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
   },
   headerContent: {
     flexDirection: 'row',
@@ -275,29 +293,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   headerButton: {
     padding: Spacing.xs,
     minWidth: 60,
-  },
-  saveButton: {
-    backgroundColor: 'rgba(74, 144, 226, 0.2)',
     borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+      saveButton: {
+      backgroundColor: Colors.primary,
+      paddingHorizontal: Spacing.lg,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.round,
+      ...Shadows.medium,
+    },
   headerTitle: {
-    fontSize: FontSize.lg,
+    fontSize: FontSize.xl,
     fontWeight: FontWeight.bold,
     color: Colors.white,
     textAlign: 'center',
     flex: 1,
   },
   saveButtonText: {
-    color: Colors.primary,
+    color: Colors.white,
     fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
+    fontWeight: FontWeight.bold,
   },
   content: {
     flex: 1,
@@ -306,22 +328,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   photoSection: {
     alignItems: 'center',
-    paddingVertical: Spacing.xl,
+    paddingVertical: Spacing.xxl,
+    paddingHorizontal: Spacing.lg,
   },
   imageUploader: {
     marginVertical: Spacing.md,
   },
   photoContainer: {
     position: 'relative',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     overflow: 'hidden',
     ...Shadows.large,
+    borderWidth: 4,
+    borderColor: Colors.primary,
   },
   profilePhoto: {
     width: '100%',
@@ -345,84 +370,82 @@ const styles = StyleSheet.create({
   },
   photoOverlayText: {
     color: Colors.white,
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.medium,
-    marginTop: Spacing.xs,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    marginTop: Spacing.sm,
+    textAlign: 'center',
+  },
+  photoSectionTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
+  },
+  photoSectionSubtitle: {
+    fontSize: FontSize.md,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    marginHorizontal: Spacing.md,
   },
   formSection: {
     paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
   },
   inputContainer: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   inputLabel: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: Spacing.sm,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    marginBottom: Spacing.md,
     marginLeft: Spacing.xs,
   },
   inputBlur: {
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     ...Shadows.medium,
   },
   input: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
     fontSize: FontSize.md,
     color: Colors.white,
-    minHeight: 50,
+    minHeight: 56,
+    fontWeight: FontWeight.medium,
   },
   multilineInput: {
-    height: 100,
+    height: 120,
     textAlignVertical: 'top',
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.lg,
   },
   disabledInput: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    opacity: 0.6,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    opacity: 0.7,
   },
   helperText: {
-    fontSize: FontSize.xs,
-    color: 'rgba(255, 255, 255, 0.5)',
-    marginTop: Spacing.xs,
-    marginLeft: Spacing.xs,
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: Spacing.sm,
+    marginLeft: Spacing.md,
+    fontStyle: 'italic',
   },
   sectionTitle: {
-    fontSize: FontSize.md,
+    fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
     color: Colors.white,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
+    marginLeft: Spacing.xs,
   },
-  dangerSection: {
-    paddingHorizontal: Spacing.lg,
-    marginTop: Spacing.xl,
-  },
-  dangerContainer: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    ...Shadows.medium,
-  },
-  dangerButton: {
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 59, 48, 0.2)',
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dangerButtonText: {
-    color: Colors.systemRed,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.medium,
-    marginLeft: Spacing.sm,
+  sectionContainer: {
+    marginBottom: Spacing.xxl,
   },
 });
 

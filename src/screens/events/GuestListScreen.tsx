@@ -363,19 +363,11 @@ const GuestListScreen: React.FC = () => {
                     
                     <View style={styles.userProfileActions}>
                       <TouchableOpacity
-                        style={[styles.userProfileActionButton, styles.userProfileActionButtonPrimary]}
+                        style={[styles.userProfileActionButton, styles.userProfileActionButtonPrimary, styles.userProfileActionButtonFullWidth]}
                         onPress={handleViewProfile}
                       >
                         <Ionicons name="person-circle" size={20} color={Colors.white} />
                         <Text style={styles.userProfileActionText}>View Profile</Text>
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity
-                        style={[styles.userProfileActionButton, styles.userProfileActionButtonSecondary]}
-                        onPress={handleSendMessage}
-                      >
-                        <Ionicons name="chatbubble" size={20} color={Colors.white} />
-                        <Text style={styles.userProfileActionText}>Message</Text>
                       </TouchableOpacity>
                     </View>
                   </>
@@ -699,6 +691,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.lg,
     gap: Spacing.xs,
+  },
+  userProfileActionButtonFullWidth: {
+    flex: 0,
+    width: '100%',
   },
   userProfileActionButtonPrimary: {
     backgroundColor: Colors.primary,

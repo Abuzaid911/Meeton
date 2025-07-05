@@ -24,7 +24,8 @@ import MapView, { Marker } from 'react-native-maps';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../constants';
 import APIService from '../../services/api';
 import { useNavigation } from '@react-navigation/native';
-import EventHeaderUploader from '../../components/events/EventHeaderUploader';
+import ImageUploader from '../../components/common/ImageUploader';
+import { ImageType } from '../../services/imageService';
 
 const { width } = Dimensions.get('window');
 
@@ -331,58 +332,12 @@ const CreateEventScreen: React.FC = () => {
     Alert.alert('Share Event', 'Event link copied to clipboard!');
   };
 
-  const pickImage = async () => {
-    // Request permission to access media library
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to select images.');
-      return;
-    }
-
-    // Show action sheet to choose between camera and gallery
-    Alert.alert(
-      'Select Image',
-      'Choose an option',
-      [
-        { text: 'Camera', onPress: openCamera },
-        { text: 'Gallery', onPress: openGallery },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+  const handleImageUpload = (cloudinaryUrl: string) => {
+    updateForm('image', cloudinaryUrl);
   };
 
-  const openCamera = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Sorry, we need camera permissions to take photos.');
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: 'images',
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      updateForm('image', result.assets[0].uri);
-    }
-  };
-
-  const openGallery = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      updateForm('image', result.assets[0].uri);
-    }
+  const handleImageRemove = () => {
+    updateForm('image', null);
   };
 
   // Mock location suggestions - in a real app, you'd use Google Places API or similar
@@ -1188,36 +1143,17 @@ const CreateEventScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Image Selection */}
+          {/* Image Selection with Cloudinary Upload */}
           {form.backgroundType === 'image' && (
-            <TouchableOpacity 
-              style={styles.imageSelector} 
-              onPress={pickImage}
-            >
-              <BlurView intensity={80} style={styles.imageSelectorBlur}>
-                <View style={styles.imageSelectorContent}>
-                  {form.image ? (
-                    <View style={styles.selectedImageContainer}>
-                      <Image source={{ uri: form.image }} style={styles.selectedImage} />
-                      <TouchableOpacity 
-                        style={styles.removeImageButton}
-                        onPress={() => updateForm('image', null)}
-                      >
-                        <Ionicons name="close-circle" size={24} color="rgba(255, 255, 255, 0.9)" />
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <>
-                      <View style={styles.imagePlaceholder}>
-                        <Ionicons name="camera" size={32} color="rgba(255, 255, 255, 0.6)" />
-                      </View>
-                      <Text style={styles.imageSelectorText}>Tap to add photo</Text>
-                      <Text style={styles.imageSelectorSubtext}>Choose from camera or gallery</Text>
-                    </>
-                  )}
-                </View>
-              </BlurView>
-            </TouchableOpacity>
+            <View style={styles.imageSelector}>
+              <ImageUploader
+                imageType={ImageType.EVENT_HEADER}
+                onImageUploaded={handleImageUpload}
+                onError={(error: string) => Alert.alert('Upload Error', error)}
+                currentImageUrl={form.image || undefined}
+                placeholder="Add event header image"
+              />
+            </View>
           )}
         </View>
       </View>
