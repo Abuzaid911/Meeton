@@ -111,37 +111,68 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkAuthState = async () => {
     try {
-      // Initialize API service
-      await APIService.initialize();
+      setIsLoading(true);
       
-      // Try to get current user from backend
-      const userProfile = await APIService.getCurrentUser();
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Authentication check timeout')), 10000); // 10 second timeout
+      });
       
-      if (userProfile) {
-        // Convert backend user to frontend user format
-        const user: User = {
-          id: userProfile.id,
-          email: userProfile.email,
-          username: userProfile.username,
-          name: userProfile.name || '',
-          bio: userProfile.bio || '',
-          image: userProfile.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile.name || userProfile.username)}&background=667eea&color=fff&size=150`,
-          location: userProfile.location || '',
-          interests: userProfile.interests,
-          onboardingCompleted: userProfile.onboardingCompleted,
-          createdAt: new Date(userProfile.createdAt),
-          updatedAt: new Date(),
-        };
-        setUser(user);
-      } else {
-        // Fallback to local storage (for backward compatibility)
-        const userData = await AsyncStorage.getItem('@auth_user');
-        if (userData) {
-          setUser(JSON.parse(userData));
+      const authCheckPromise = (async () => {
+        // Initialize API service
+        await APIService.initialize();
+        
+        // Try to get current user from backend
+        const userProfile = await APIService.getCurrentUser();
+        
+        if (userProfile) {
+          // Convert backend user to frontend user format
+          const user: User = {
+            id: userProfile.id,
+            email: userProfile.email,
+            username: userProfile.username,
+            name: userProfile.name || '',
+            bio: userProfile.bio || '',
+            image: userProfile.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile.name || userProfile.username)}&background=667eea&color=fff&size=150`,
+            location: userProfile.location || '',
+            interests: userProfile.interests,
+            onboardingCompleted: userProfile.onboardingCompleted,
+            createdAt: new Date(userProfile.createdAt),
+            updatedAt: new Date(),
+          };
+          setUser(user);
+        } else {
+          // Fallback to local storage (for backward compatibility)
+          const userData = await AsyncStorage.getItem('@auth_user');
+          if (userData) {
+            setUser(JSON.parse(userData));
+          }
         }
-      }
+      })();
+      
+      // Race between auth check and timeout
+      await Promise.race([authCheckPromise, timeoutPromise]);
+      
     } catch (error) {
       console.log('Error checking auth state:', error);
+      
+      // If authentication fails, clear any stored tokens and start fresh
+      if (error.message === 'Authentication check timeout' || error.message?.includes('401')) {
+        console.log('🔒 Authentication failed or timed out, clearing tokens and starting fresh');
+        await APIService.clearTokens();
+        setUser(null);
+      }
+      
+      // Try to load user from local storage as fallback
+      try {
+        const userData = await AsyncStorage.getItem('@auth_user');
+        if (userData) {
+          console.log('📱 Loading user from local storage as fallback');
+          setUser(JSON.parse(userData));
+        }
+      } catch (storageError) {
+        console.log('Failed to load user from storage:', storageError);
+      }
     } finally {
       setIsLoading(false);
     }
