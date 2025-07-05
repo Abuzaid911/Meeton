@@ -79,7 +79,8 @@ router.get('/:id/attendees',
  * GET /api/events/user/:userId
  */
 router.get('/user/:userId', 
-  apiLimiter, 
+  apiLimiter,
+  authenticate, 
   eventController.getUserEvents
 );
 

@@ -264,6 +264,34 @@ export class FriendService {
   }
 
   /**
+   * Cancel sent friend request
+   */
+  async cancelFriendRequest(senderId: string, receiverId: string): Promise<boolean> {
+    try {
+      const friendRequest = await this.prisma.friendRequest.findFirst({
+        where: {
+          senderId,
+          receiverId,
+          status: 'PENDING'
+        }
+      });
+
+      if (!friendRequest) {
+        return false; // No pending request found
+      }
+
+      await this.prisma.friendRequest.delete({
+        where: { id: friendRequest.id }
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error cancelling friend request:', error);
+      return false;
+    }
+  }
+
+  /**
    * Remove friend (delete friendship)
    */
   async removeFriend(currentUserId: string, friendUserId: string): Promise<boolean> {

@@ -6,6 +6,9 @@ import {
   AuthorizationError, 
   ConflictError 
 } from '../utils/errors';
+import { locationService } from './locationService';
+import { weatherService } from './weatherService';
+import { cacheService, CachedEvent } from './cacheService';
 
 /**
  * Event creation input interface
@@ -99,6 +102,21 @@ class EventService {
         throw new ValidationError('RSVP deadline must be before the event date');
       }
 
+      // Process location data if coordinates are not provided
+      let lat = data.lat;
+      let lng = data.lng;
+      let locationDetails = null;
+
+      if (!lat || !lng) {
+        // Attempt to geocode the location
+        const geocodeResult = await locationService.geocodeAddress(data.location);
+        if (geocodeResult) {
+          lat = geocodeResult.coordinates.lat;
+          lng = geocodeResult.coordinates.lng;
+          locationDetails = geocodeResult;
+        }
+      }
+
       // Create the event
       const event = await prisma.event.create({
         data: {
@@ -106,8 +124,8 @@ class EventService {
           date: eventDate,
           time: data.time,
           location: data.location,
-          lat: data.lat,
-          lng: data.lng,
+          lat: lat,
+          lng: lng,
           description: data.description,
           duration: data.duration,
           capacity: data.capacity,
@@ -120,6 +138,7 @@ class EventService {
           privacyLevel: data.privacyLevel,
           ticketPrice: data.ticketPrice,
           externalUrl: data.externalUrl,
+          locationDetails: locationDetails as any,
           hostId,
         },
         include: {
@@ -156,6 +175,19 @@ class EventService {
       // Automatically add the host as an attendee with YES RSVP
       await this.addAttendee(event.id, hostId, RSVP.YES);
 
+      // Fetch weather data asynchronously (don't wait for completion)
+      if (lat && lng) {
+        weatherService.getEventWeather(event.id).catch(error => {
+          console.error(`Failed to fetch weather for event ${event.id}:`, error);
+        });
+      }
+
+      // Cache the newly created event
+      await cacheService.cacheEvent(event as unknown as CachedEvent);
+
+      // Invalidate related caches
+      await cacheService.invalidateUserCache(hostId);
+
       return event;
     } catch (error) {
       if (error instanceof ValidationError) {
@@ -170,6 +202,29 @@ class EventService {
    * Get event by ID with full details
    */
   async getEventById(eventId: string, userId?: string): Promise<Event | null> {
+    // Try to get from cache first
+    const cachedEvent = await cacheService.getCachedEvent(eventId);
+    if (cachedEvent) {
+      // Check privacy permissions
+      if (userId && !this.canUserViewEvent(cachedEvent, userId)) {
+        throw new AuthorizationError('You do not have permission to view this event');
+      }
+
+      // Increment view count if not the host viewing their own event
+      if (userId && userId !== cachedEvent.hostId) {
+        await prisma.event.update({
+          where: { id: eventId },
+          data: { viewCount: { increment: 1 } },
+        });
+        
+        // Invalidate cache to reflect updated view count
+        await cacheService.invalidateEventCache(eventId);
+      }
+
+      return cachedEvent;
+    }
+
+    // If not in cache, fetch from database
     const event = await prisma.event.findUnique({
       where: { id: eventId },
       include: {
@@ -240,12 +295,18 @@ class EventService {
       throw new AuthorizationError('You do not have permission to view this event');
     }
 
+    // Cache the event
+    await cacheService.cacheEvent(event as CachedEvent);
+
     // Increment view count if not the host viewing their own event
     if (userId && userId !== event.hostId) {
       await prisma.event.update({
         where: { id: eventId },
         data: { viewCount: { increment: 1 } },
       });
+      
+      // Invalidate cache to reflect updated view count
+      await cacheService.invalidateEventCache(eventId);
     }
 
     return event;
@@ -433,6 +494,22 @@ class EventService {
       }
     }
 
+    // Handle location updates
+    if (data.location && data.location !== existingEvent.location) {
+      // If coordinates are not provided, try to geocode the new location
+      if (!data.lat || !data.lng) {
+        const geocodeResult = await locationService.geocodeAddress(data.location);
+        if (geocodeResult) {
+          updateData.lat = geocodeResult.coordinates.lat;
+          updateData.lng = geocodeResult.coordinates.lng;
+          updateData.locationDetails = geocodeResult as any;
+        }
+      } else {
+        updateData.lat = data.lat;
+        updateData.lng = data.lng;
+      }
+    }
+
     const updatedEvent = await prisma.event.update({
       where: { id: eventId },
       data: updateData,
@@ -466,6 +543,13 @@ class EventService {
         },
       },
     });
+
+    // Refresh weather data if location or date changed
+    if ((data.location || data.date) && updatedEvent.lat && updatedEvent.lng) {
+      weatherService.getEventWeather(eventId).catch(error => {
+        console.error(`Failed to refresh weather for event ${eventId}:`, error);
+      });
+    }
 
     return updatedEvent;
   }

@@ -61,6 +61,12 @@ router.get('/', friendController.getFriends);
 router.get('/requests', friendController.getFriendRequests);
 
 /**
+ * Cancel sent friend request
+ * DELETE /api/friends/request/:userId
+ */
+router.delete('/request/:userId', friendController.cancelFriendRequest);
+
+/**
  * Remove friend
  * DELETE /api/friends/:userId
  */

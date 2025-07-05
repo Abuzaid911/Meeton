@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { eventService } from '../services/eventService';
+import { analyticsService } from '../services/analyticsService';
 import { sendSuccess, sendError } from '../middleware/errorHandler';
 import { 
   AuthenticationError, 
@@ -112,6 +113,11 @@ class EventController {
       if (!event) {
         throw new NotFoundError('Event not found');
       }
+
+      // Track event view (async, don't wait for completion)
+      analyticsService.trackEventView(id, userId).catch(error => {
+        console.error('Failed to track event view:', error);
+      });
       
       sendSuccess(res, event, 'Event retrieved successfully');
     } catch (error) {
@@ -181,6 +187,13 @@ class EventController {
       }
       
       const attendee = await eventService.addAttendee(id, req.user.id, rsvp);
+
+      // Track RSVP analytics (async, don't wait for completion)
+      if (rsvp !== 'PENDING') {
+        analyticsService.trackRSVP(id, rsvp).catch(error => {
+          console.error('Failed to track RSVP:', error);
+        });
+      }
       
       sendSuccess(res, attendee, 'RSVP updated successfully');
     } catch (error) {

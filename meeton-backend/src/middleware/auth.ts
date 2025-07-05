@@ -28,20 +28,29 @@ export const authenticate = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    console.log(`🔐 Auth middleware: ${req.method} ${req.path}`);
+    
     // Extract token from Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader) {
+      console.log('❌ Auth middleware: No authorization header');
       throw new AuthenticationError('Authorization header required');
     }
 
     const token = authHeader.replace('Bearer ', '');
     if (!token || token === 'Bearer') {
+      console.log('❌ Auth middleware: No token in header');
       throw new AuthenticationError('Token required');
     }
 
+    console.log(`🔐 Auth middleware: Token length ${token.length}, preview: ${token.substring(0, 20)}...`);
+
     // Verify JWT token
     const env = getEnv();
+    console.log('🔐 Auth middleware: Verifying token with JWT_SECRET...');
     const payload = jwt.verify(token, env.JWT_SECRET) as JWTPayload;
+    
+    console.log(`🔐 Auth middleware: Token valid for user ${payload.userId}, expires at ${new Date(payload.exp * 1000).toISOString()}`);
 
     // Check if user still exists in database
     const user = await prisma.user.findUnique({
@@ -56,8 +65,11 @@ export const authenticate = async (
     });
 
     if (!user) {
+      console.log(`❌ Auth middleware: User ${payload.userId} not found in database`);
       throw new AuthenticationError('User not found');
     }
+
+    console.log(`✅ Auth middleware: User ${user.id} authenticated successfully`);
 
     // Update last active timestamp
     await prisma.user.update({
@@ -77,9 +89,12 @@ export const authenticate = async (
 
     next();
   } catch (error) {
+    console.log(`❌ Auth middleware error:`, error);
     if (error instanceof jwt.JsonWebTokenError) {
+      console.log('❌ Auth middleware: Invalid token format');
       next(new AuthenticationError('Invalid token'));
     } else if (error instanceof jwt.TokenExpiredError) {
+      console.log('❌ Auth middleware: Token expired');
       next(new AuthenticationError('Token expired'));
     } else {
       next(error);

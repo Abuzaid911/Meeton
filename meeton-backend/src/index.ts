@@ -9,6 +9,8 @@ import session from 'express-session';
 import DatabaseManager from './config/database';
 import PassportConfig from './config/passport';
 import FirebaseManager from './config/firebase';
+import { redisManager } from './config/redis';
+import { cacheService } from './services/cacheService';
 import { apiLimiter } from './middleware/rateLimit';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -19,6 +21,10 @@ import eventRoutes from './routes/events';
 import friendRoutes from './routes/friends';
 import notificationRoutes from './routes/notifications';
 import imageRoutes from './routes/images';
+import analyticsRoutes from './routes/analytics';
+import weatherRoutes from './routes/weather';
+import locationRoutes from './routes/location';
+import sharingRoutes from './routes/sharing';
 
 console.log('🔥 Routes imported:', { 
   authRoutes: !!authRoutes, 
@@ -26,7 +32,11 @@ console.log('🔥 Routes imported:', {
   eventRoutes: !!eventRoutes, 
   friendRoutes: !!friendRoutes,
   notificationRoutes: !!notificationRoutes,
-  imageRoutes: !!imageRoutes
+  imageRoutes: !!imageRoutes,
+  analyticsRoutes: !!analyticsRoutes,
+  weatherRoutes: !!weatherRoutes,
+  locationRoutes: !!locationRoutes,
+  sharingRoutes: !!sharingRoutes
 });
 
 // Load environment variables
@@ -85,11 +95,16 @@ app.use('/api', apiLimiter);
 app.get('/health', async (req, res) => {
   try {
     const dbHealth = await DatabaseManager.runHealthCheck();
+    const redisHealth = await redisManager.getHealthStatus();
+    const cacheStats = await cacheService.getCacheStats();
+    
     const health = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       database: dbHealth,
+      redis: redisHealth,
+      cache: cacheStats,
       memory: process.memoryUsage(),
       environment: process.env.NODE_ENV || 'development',
     };
@@ -117,6 +132,10 @@ app.use('/api/events', (req, res, next) => {
 app.use('/api/friends', friendRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/images', imageRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/weather', weatherRoutes);
+app.use('/api/location', locationRoutes);
+app.use('/api/sharing', sharingRoutes);
 
 // API documentation endpoint
 app.get('/api', (req, res) => {
@@ -131,6 +150,10 @@ app.get('/api', (req, res) => {
       friends: '/api/friends',
       notifications: '/api/notifications',
       images: '/api/images',
+      analytics: '/api/analytics',
+      weather: '/api/weather',
+      location: '/api/location',
+      sharing: '/api/sharing',
     },
   });
 });
@@ -156,6 +179,7 @@ const gracefulShutdown = async (signal: string) => {
   
   try {
     await DatabaseManager.disconnect();
+    await redisManager.disconnect();
     console.log('✅ Graceful shutdown completed');
     process.exit(0);
   } catch (error) {
@@ -174,6 +198,17 @@ const startServer = async () => {
     // Connect to database
     await DatabaseManager.connect();
     
+    // Connect to Redis
+    try {
+      await redisManager.connect();
+      console.log('✅ Redis connected successfully');
+      
+      // Warm up cache
+      await cacheService.warmUpCache();
+    } catch (redisError) {
+      console.warn('⚠️  Redis connection failed, continuing without cache:', redisError);
+    }
+    
     // Initialize Firebase for notifications
     FirebaseManager.initialize();
     
@@ -184,6 +219,8 @@ const startServer = async () => {
 📍 Environment: ${process.env.NODE_ENV || 'development'}
 🌐 Port: ${PORT}
 💾 Database: Connected
+🔗 Redis: ${redisManager.isHealthy() ? 'Connected' : 'Disconnected'}
+📊 Cache: ${cacheService.isHealthy() ? 'Active' : 'Inactive'}
 🔗 Health Check: http://localhost:${PORT}/health
 📚 API Documentation: http://localhost:${PORT}/api
       `);

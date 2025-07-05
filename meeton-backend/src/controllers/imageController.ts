@@ -30,6 +30,7 @@ const upload = multer({
 class ImageController {
   constructor() {
     // Bind all methods to preserve 'this' context
+    this.uploadGenericImage = this.uploadGenericImage.bind(this);
     this.uploadProfileImage = this.uploadProfileImage.bind(this);
     this.uploadEventHeaderImage = this.uploadEventHeaderImage.bind(this);
     this.uploadEventPhoto = this.uploadEventPhoto.bind(this);
@@ -37,6 +38,36 @@ class ImageController {
     this.getEventPhotos = this.getEventPhotos.bind(this);
     this.generateImageVariations = this.generateImageVariations.bind(this);
     this.cleanupOrphanedImages = this.cleanupOrphanedImages.bind(this);
+  }
+
+  /**
+   * Upload generic image (for creation flows)
+   * POST /api/images/upload
+   */
+  async uploadGenericImage(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new AuthenticationError('Authentication required');
+      }
+
+      if (!req.file) {
+        throw new ValidationError('No image file provided');
+      }
+
+      const { imageType } = req.body;
+      if (!imageType || !Object.values(ImageType).includes(imageType)) {
+        throw new ValidationError('Valid image type is required (profile, event_header, event_photo)');
+      }
+
+      const result = await imageService.uploadGenericImage(
+        req.file.buffer,
+        imageType as ImageType
+      );
+
+      sendSuccess(res, result, 'Image uploaded successfully');
+    } catch (error) {
+      next(error);
+    }
   }
 
   /**

@@ -148,6 +148,36 @@ export class FriendController {
   }
 
   /**
+   * Cancel sent friend request
+   * DELETE /api/friends/request/:userId
+   */
+  async cancelFriendRequest(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { userId: receiverId } = req.params;
+      const senderId = (req.user as any)?.id;
+
+      if (!senderId) {
+        throw new AuthenticationError('User not authenticated');
+      }
+
+      const success = await friendService.cancelFriendRequest(senderId, receiverId);
+
+      if (!success) {
+        throw new NotFoundError('Friend request not found or already processed');
+      }
+
+      console.log('Friend request cancelled', { senderId, receiverId });
+
+      res.status(200).json({
+        success: true,
+        message: 'Friend request cancelled successfully'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Remove friend
    * DELETE /api/friends/:userId
    */

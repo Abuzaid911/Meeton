@@ -14,6 +14,18 @@ const router = Router();
 // ============================================================================
 
 /**
+ * Generic image upload (for creation flows)
+ * POST /api/images/upload
+ */
+router.post(
+  '/upload',
+  uploadLimiter,
+  authenticate,
+  ImageController.getSingleUploadMiddleware(),
+  imageController.uploadGenericImage
+);
+
+/**
  * Upload profile image
  * POST /api/images/profile
  */

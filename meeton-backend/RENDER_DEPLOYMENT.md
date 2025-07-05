@@ -1,177 +1,267 @@
-# MeetOn Backend Deployment on Render
+# Render Deployment Guide with Redis
 
-## 🚀 Deployment Overview
+This guide covers deploying the MeetOn backend to Render with Redis integration.
 
-This document outlines the steps to deploy the MeetOn backend with Firebase push notifications to Render.com.
+## Prerequisites
 
-## 📋 Prerequisites
+1. Render account: [Sign up at render.com](https://render.com)
+2. GitHub repository with your backend code
+3. Environment variables ready
 
-- Render.com account
-- Firebase project with Admin SDK key
-- Google OAuth credentials
-- Cloudinary account (for image uploads)
+## Step 1: Create Redis Instance
 
-## 🔧 Environment Variables Setup
+1. **Go to Render Dashboard**
+   - Visit [dashboard.render.com](https://dashboard.render.com)
+   - Click "New +" button
 
-### Required Environment Variables on Render
+2. **Create Redis Service**
+   - Select "Redis"
+   - Configure:
+     - **Name**: `meeton-redis`
+     - **Region**: Choose closest to your web service
+     - **Plan**: 
+       - Free: 25MB (good for development)
+       - Starter: $7/month, 256MB
+       - Standard: $15/month, 1GB
+     - **Max Memory Policy**: `allkeys-lru` (recommended)
+   - Click "Create Redis"
 
-Set these in your Render service's Environment tab:
+3. **Get Connection Details**
+   After creation, you'll see:
+   ```
+   Internal Redis URL: redis://red-xxxxxxxxxxxxx:6379
+   External Redis URL: rediss://red-xxxxxxxxxxxxx:6379
+   ```
 
-```bash
+## Step 2: Create Web Service
+
+1. **Create New Web Service**
+   - Click "New +" → "Web Service"
+   - Connect your GitHub repository
+   - Select the repository containing your backend
+
+2. **Configure Build Settings**
+   - **Name**: `meeton-backend`
+   - **Region**: Same as Redis instance
+   - **Branch**: `main` (or your production branch)
+   - **Root Directory**: `meeton-backend` (if backend is in subdirectory)
+   - **Environment**: `Node`
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+
+## Step 3: Environment Variables
+
+Add these environment variables to your Render web service:
+
+### Required Variables
+```env
 # Database
-DATABASE_URL=postgresql://meeton:jKYf49AbEPZO0M2SX2z9RcmbEJJAZKIj@dpg-d1j7lh95pdvs73cud15g-a.oregon-postgres.render.com/meeton
+DATABASE_URL=your-postgresql-url
 
-# JWT Secrets
-JWT_SECRET=your-jwt-secret-key-here
-JWT_REFRESH_SECRET=your-jwt-refresh-secret-key-here
+# Redis (use Internal URL for better performance)
+REDIS_URL=redis://red-xxxxxxxxxxxxx:6379
 
-# Firebase Configuration
-FIREBASE_PROJECT_ID=meeton-9a49c
-FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"meeton-9a49c",...}
+# JWT
+JWT_SECRET=your-super-secure-jwt-secret-here
 
 # Google OAuth
-GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 
-# Cloudinary (optional)
+# Cloudinary
 CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud-name
 CLOUDINARY_API_KEY=your-cloudinary-api-key
 CLOUDINARY_API_SECRET=your-cloudinary-api-secret
 
-# Redis (optional)
-REDIS_URL=redis://localhost:6379
+# OpenWeather API
+OPENWEATHER_API_KEY=your-openweather-api-key
 
-# Server
+# Google Maps API
+GOOGLE_MAPS_API_KEY=your-google-maps-api-key
+
+# Environment
 NODE_ENV=production
+PORT=3000
+
+# CORS
+CORS_ORIGIN=https://your-frontend-domain.com
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=1000
+
+# Session
+SESSION_SECRET=your-session-secret-here
 ```
 
-## 🔑 Firebase Service Account Key
+### Optional Variables
+```env
+# Firebase (if using push notifications)
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_PRIVATE_KEY=your-firebase-private-key
+FIREBASE_CLIENT_EMAIL=your-firebase-client-email
 
-The `FIREBASE_SERVICE_ACCOUNT_KEY` should be the complete JSON object as a single line string:
-
-```json
-{"type":"service_account","project_id":"meeton-9a49c","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"firebase-adminsdk-...@meeton-9a49c.iam.gserviceaccount.com","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-...%40meeton-9a49c.iam.gserviceaccount.com"}
+# Logging
+LOG_LEVEL=info
 ```
 
-## 📂 Deployment Steps
+## Step 4: Database Setup
 
-### 1. Connect Repository
-- Go to Render Dashboard
-- Click "New +" → "Web Service"
-- Connect your GitHub repository
-- Select the `meeton-backend` directory
+1. **Create PostgreSQL Database**
+   - In Render dashboard, click "New +" → "PostgreSQL"
+   - Configure database settings
+   - Copy the External Database URL
 
-### 2. Configure Service
-- **Name**: `meeton-backend`
-- **Environment**: `Node`
-- **Build Command**: `npm install && npm run build`
-- **Start Command**: `npm run db:migrate:prod && npm run start`
-- **Plan**: Free (or upgrade as needed)
+2. **Set DATABASE_URL**
+   - Add the PostgreSQL URL to your web service environment variables
+   - Format: `postgresql://user:password@host:port/database`
 
-### 3. Set Environment Variables
-Add all the environment variables listed above in the Environment tab.
+## Step 5: Deploy
 
-### 4. Deploy
-- Click "Create Web Service"
-- Wait for deployment to complete
-- Check logs for any errors
+1. **Initial Deployment**
+   - Click "Create Web Service"
+   - Render will automatically deploy from your GitHub repository
+   - Monitor the build logs for any errors
 
-## 🗄️ Database Migration
+2. **Database Migration**
+   - After first deployment, run database migrations:
+   - Go to your service → "Shell" tab
+   - Run: `npx prisma migrate deploy`
+   - Run: `npx prisma generate`
 
-The deployment will automatically run database migrations using:
+## Step 6: Verify Deployment
+
+1. **Health Check**
+   ```bash
+   curl https://your-service-url.onrender.com/health
+   ```
+
+2. **Expected Response**
+   ```json
+   {
+     "status": "healthy",
+     "database": { "database": "healthy" },
+     "redis": { "status": "healthy" },
+     "cache": { "totalKeys": 0, "memoryUsage": "1MB" }
+   }
+   ```
+
+## Helper Scripts
+
+### Parse Redis URL
+Use the included script to parse your Render Redis URL:
+
 ```bash
-npm run db:migrate:prod
+node scripts/parse-redis-url.js "redis://red-xxxxxxxxxxxxx:6379"
 ```
 
-This command:
-1. Generates Prisma client
-2. Pushes schema changes to the database
-3. Seeds initial data if needed
+This will output the individual environment variables if needed.
 
-## 🔍 Health Check
+## Monitoring and Maintenance
 
-The service includes a health check endpoint at `/health` that verifies:
-- Database connection
-- Firebase initialization
-- Server status
+### 1. Logs
+- Access logs through Render dashboard
+- Monitor for Redis connection issues
+- Watch for rate limiting alerts
 
-## 🚨 Troubleshooting
+### 2. Redis Monitoring
+- Check Redis memory usage in Render dashboard
+- Monitor cache hit rates through health endpoint
+- Set up alerts for high memory usage
+
+### 3. Performance
+- Use Redis internal URL for better latency
+- Monitor cache effectiveness
+- Adjust TTL values based on usage patterns
+
+## Troubleshooting
 
 ### Common Issues
 
-1. **Database Connection Errors**
-   - Verify DATABASE_URL is correct
-   - Check if database is accessible from Render
+1. **Redis Connection Failed**
+   ```
+   Error: Redis connection error: ECONNREFUSED
+   ```
+   - **Solution**: Check REDIS_URL format and ensure Redis service is running
+   - Verify both services are in the same region
 
-2. **Firebase Initialization Errors**
-   - Verify FIREBASE_SERVICE_ACCOUNT_KEY is valid JSON
-   - Check FIREBASE_PROJECT_ID matches your project
+2. **Database Connection Issues**
+   ```
+   Error: getaddrinfo ENOTFOUND
+   ```
+   - **Solution**: Verify DATABASE_URL is correct
+   - Check if database service is running
 
 3. **Build Failures**
-   - Check Node.js version compatibility
-   - Verify all dependencies are in package.json
+   - Check build logs for missing dependencies
+   - Verify Node.js version compatibility
+   - Ensure all environment variables are set
 
-4. **Migration Errors**
-   - Check database permissions
-   - Verify schema is compatible with PostgreSQL
-
-### Logs and Monitoring
-
-Access logs via:
-- Render Dashboard → Your Service → Logs
-- Check for startup errors and runtime issues
-
-## 📱 Testing Notifications
-
-After deployment:
-
-1. **Test API Endpoints**
-   ```bash
-   curl https://your-render-app.onrender.com/health
+4. **Memory Issues**
    ```
+   Redis OOM command not allowed
+   ```
+   - **Solution**: Upgrade Redis plan or optimize cache usage
+   - Implement cache eviction policies
 
-2. **Test Firebase Integration**
-   - Register FCM tokens via `/api/notifications/register-token`
-   - Send test notifications via friend requests
+### Debug Commands
 
-3. **Monitor Logs**
-   - Check for Firebase initialization messages
-   - Verify notification delivery logs
+Access your service shell and run:
 
-## 🔄 Continuous Deployment
+```bash
+# Test Redis connection
+redis-cli -u $REDIS_URL ping
 
-The render.yaml file is configured for automatic deployments:
-- Pushes to main branch trigger deployments
-- Environment variables are maintained across deployments
-- Database migrations run automatically
+# Check environment variables
+env | grep REDIS
 
-## 🛡️ Security Considerations
+# Test database connection
+npx prisma db pull
 
-- All secrets are stored as environment variables
-- Firebase service account key is secured
-- Database URL includes authentication
-- CORS is configured for production domains
+# Check application health
+curl localhost:3000/health
+```
 
-## 📊 Performance Monitoring
+## Security Best Practices
 
-Monitor your deployment:
-- Response times via Render dashboard
-- Database query performance
-- Firebase notification delivery rates
-- Memory and CPU usage
+1. **Use Internal URLs**: Always use Redis internal URL for service-to-service communication
+2. **Secure Environment Variables**: Never commit secrets to version control
+3. **Enable HTTPS**: Render provides free SSL certificates
+4. **Rate Limiting**: Configure appropriate rate limits for your API
+5. **CORS**: Set specific origins instead of wildcards
 
-## 🔧 Scaling
+## Scaling Considerations
 
-For production scaling:
-- Upgrade Render plan for more resources
-- Consider Redis for session management
-- Implement database connection pooling
-- Add load balancing for multiple instances
+1. **Redis Plans**:
+   - Free: Development/testing
+   - Starter: Small production apps
+   - Standard: Medium traffic apps
+   - Pro: High traffic applications
 
-## 📞 Support
+2. **Web Service Plans**:
+   - Free: 750 hours/month, sleeps after inactivity
+   - Starter: Always-on, 512MB RAM
+   - Standard: 2GB RAM, better performance
 
-For deployment issues:
-- Check Render documentation
-- Review Firebase Admin SDK docs
-- Monitor application logs
-- Contact support if needed 
+3. **Auto-scaling**:
+   - Render automatically scales within plan limits
+   - Monitor performance and upgrade as needed
+
+## Cost Optimization
+
+1. **Development**:
+   - Use free tiers for Redis and web service
+   - Consider shared databases
+
+2. **Production**:
+   - Start with Starter plans
+   - Monitor usage and scale up as needed
+   - Use caching effectively to reduce database load
+
+## Next Steps
+
+1. Set up monitoring and alerting
+2. Configure CI/CD pipelines
+3. Implement backup strategies
+4. Set up staging environment
+5. Configure custom domains 

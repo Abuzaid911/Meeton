@@ -210,6 +210,41 @@ class ImageService {
   }
 
   /**
+   * Upload generic image (for creation flows without specific entity IDs)
+   */
+  async uploadGenericImage(
+    imageBuffer: Buffer,
+    imageType: ImageType
+  ): Promise<{ imageUrl: string; publicId: string }> {
+    try {
+      // Generate a temporary user ID for generic uploads
+      const tempUserId = `temp_${Date.now()}`;
+      
+      // Upload image
+      const uploadResult = await this.uploadFromBuffer(
+        imageBuffer,
+        imageType,
+        tempUserId,
+        {
+          tags: ['generic_upload', imageType],
+          context: { 
+            purpose: 'generic_upload',
+            uploaded_at: new Date().toISOString()
+          }
+        }
+      );
+
+      return {
+        imageUrl: uploadResult.secureUrl,
+        publicId: uploadResult.publicId
+      };
+    } catch (error) {
+      console.error('Generic image upload failed:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Update user profile image
    */
   async updateUserProfileImage(userId: string, imageBuffer: Buffer): Promise<string> {
