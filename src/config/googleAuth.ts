@@ -5,11 +5,11 @@ export const GOOGLE_CONFIG = {
   // iOS Configuration
   iosClientId: '38702126641-cs5p51cu1m4elmp9li0ptv2ot77k6pb9.apps.googleusercontent.com',
   
-  // Android Configuration
+  // Android Configuration (from Google Cloud Console OAuth client)
   androidClientId: '38702126641-rn0e5nm88jrnm4cohi9m7dhnavuprmon.apps.googleusercontent.com',
   
-  // Web Configuration (for backend) - from your existing setup
-  webClientId: '38702126641-tpk5lqa0g5knb0ie73r0c0i29kha5019.apps.googleusercontent.com',
+  // Web Configuration (using Android client ID since it has SHA-1 configured)
+  webClientId: '38702126641-rn0e5nm88jrnm4cohi9m7dhnavuprmon.apps.googleusercontent.com',
   
   // Backend endpoints - use same logic as main API config
   backendBaseUrl: API_BASE_URL,
@@ -38,10 +38,9 @@ export const getGoogleSignInConfig = () => {
     };
   }
   
-  // Android configuration
+  // Android configuration - use only webClientId for direct Google OAuth
   if (Platform.OS === 'android') {
     return {
-      androidClientId: GOOGLE_CONFIG.androidClientId,
       webClientId: GOOGLE_CONFIG.webClientId,
       offlineAccess: true,
     };

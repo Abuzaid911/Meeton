@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,7 @@ import APIService from '../../services/api';
 import { useNavigation } from '@react-navigation/native';
 import ImageUploader from '../../components/common/ImageUploader';
 import { ImageType } from '../../services/imageService';
+import { locationSearchService, LocationSuggestion as LocationSearchSuggestion } from '../../services/locationSearchService';
 
 const { width } = Dimensions.get('window');
 
@@ -49,13 +50,8 @@ interface EventForm {
   maxGuests: string;
 }
 
-interface LocationSuggestion {
-  id: string;
-  name: string;
-  address: string;
-  latitude: number;
-  longitude: number;
-}
+// Use LocationSuggestion from the service
+type LocationSuggestion = LocationSearchSuggestion;
 
 const eventTypes = [
   { id: 'birthday', name: 'Birthday', icon: 'gift', color: Colors.systemRed },
@@ -190,6 +186,7 @@ const CreateEventScreen: React.FC = () => {
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSearchingLocations, setIsSearchingLocations] = useState(false);
   const [showLocationNameModal, setShowLocationNameModal] = useState(false);
   const [selectedLocationForNaming, setSelectedLocationForNaming] = useState<LocationSuggestion | null>(null);
   const [createdEventId, setCreatedEventId] = useState<string | null>(null);
@@ -372,39 +369,53 @@ const CreateEventScreen: React.FC = () => {
     updateForm('image', null);
   };
 
-  // Mock location suggestions - in a real app, you'd use Google Places API or similar
-  const mockLocationSuggestions: LocationSuggestion[] = [
-    { id: '1', name: 'Central Park', address: 'New York, NY 10024, USA', latitude: 40.7829, longitude: -73.9654 },
-    { id: '2', name: 'Golden Gate Park', address: 'San Francisco, CA, USA', latitude: 37.7694, longitude: -122.4862 },
-    { id: '3', name: 'Millennium Park', address: 'Chicago, IL 60601, USA', latitude: 41.8826, longitude: -87.6226 },
-    { id: '4', name: 'Bryant Park', address: 'New York, NY 10018, USA', latitude: 40.7536, longitude: -73.9832 },
-    { id: '5', name: 'Dolores Park', address: 'San Francisco, CA 94114, USA', latitude: 37.7596, longitude: -122.4269 },
-    { id: '6', name: 'Grant Park', address: 'Chicago, IL 60605, USA', latitude: 41.8755, longitude: -87.6244 },
-    { id: '7', name: 'Balboa Park', address: 'San Diego, CA, USA', latitude: 32.7341, longitude: -117.1449 },
-    { id: '8', name: 'Lincoln Park', address: 'Chicago, IL, USA', latitude: 41.9278, longitude: -87.6394 },
-  ];
-
-  const searchLocations = (query: string) => {
+  // Real-world location search using Google Places API
+  const searchLocations = async (query: string) => {
     if (query.length < 2) {
       setLocationSuggestions([]);
       setShowLocationSuggestions(false);
       return;
     }
 
-    const filtered = mockLocationSuggestions.filter(location =>
-      location.name.toLowerCase().includes(query.toLowerCase()) ||
-      location.address.toLowerCase().includes(query.toLowerCase())
-    );
-    
-    setLocationSuggestions(filtered);
-    setShowLocationSuggestions(filtered.length > 0);
+    if (!locationSearchService.isConfigured()) {
+      console.warn('Google Places API is not configured. Please add your API key to locationSearchService.ts');
+      // Fallback to basic search for development
+      setLocationSuggestions([]);
+      setShowLocationSuggestions(false);
+      return;
+    }
+
+    try {
+      setIsSearchingLocations(true);
+      const suggestions = await locationSearchService.searchLocations(query, 5);
+      setLocationSuggestions(suggestions);
+      setShowLocationSuggestions(suggestions.length > 0);
+    } catch (error) {
+      console.error('Error searching locations:', error);
+      Alert.alert('Search Error', 'Unable to search locations. Please try again.');
+      setLocationSuggestions([]);
+      setShowLocationSuggestions(false);
+    } finally {
+      setIsSearchingLocations(false);
+    }
   };
 
   const handleLocationInputChange = (text: string) => {
     setLocationQuery(text);
     updateForm('location', text);
-    searchLocations(text);
+    
+    // Debounce the search to avoid too many API calls
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      searchLocations(text);
+    }, 300); // Wait 300ms after user stops typing
   };
+
+  // Add search timeout ref
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const selectLocation = (location: LocationSuggestion) => {
     setSelectedLocationForNaming(location);
@@ -439,7 +450,23 @@ const CreateEventScreen: React.FC = () => {
       const location = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = location.coords;
       
-      // In a real app, you'd reverse geocode to get the address
+      // Use reverse geocoding to get proper address
+      if (locationSearchService.isConfigured()) {
+        try {
+          const locationInfo = await locationSearchService.reverseGeocode(latitude, longitude);
+          if (locationInfo) {
+            updateForm('coordinates', { latitude, longitude });
+            updateForm('location', locationInfo.address);
+            updateForm('locationDisplayName', locationInfo.name);
+            setLocationQuery(locationInfo.name);
+            return;
+          }
+        } catch (error) {
+          console.error('Error reverse geocoding:', error);
+        }
+      }
+      
+      // Fallback to coordinates if reverse geocoding fails
       updateForm('coordinates', { latitude, longitude });
       updateForm('location', `Current Location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`);
       setLocationQuery(`Current Location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`);
@@ -468,8 +495,11 @@ const CreateEventScreen: React.FC = () => {
   };
 
   const handleDateSelection = (date: Date) => {
-    // Store date in YYYY-MM-DD format for easier combination with time
-    const formattedDate = date.toISOString().split('T')[0];
+    // Store date in YYYY-MM-DD format using local timezone to avoid date shift issues
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
     updateForm('date', formattedDate);
     setShowDatePicker(false);
   };
@@ -837,25 +867,41 @@ const CreateEventScreen: React.FC = () => {
       </View>
 
       {/* Location Suggestions */}
-      {showLocationSuggestions && locationSuggestions.length > 0 && (
+      {(showLocationSuggestions || isSearchingLocations) && (
         <View style={styles.suggestionsContainer}>
           <BlurView intensity={80} style={styles.suggestionsBlur}>
             <View style={styles.suggestionsContent}>
-              {locationSuggestions.map((suggestion) => (
-                <TouchableOpacity
-                  key={suggestion.id}
-                  style={styles.suggestionItem}
-                  onPress={() => selectLocation(suggestion)}
-                >
+              {isSearchingLocations ? (
+                <View style={styles.suggestionItem}>
                   <View style={styles.suggestionContent}>
-                    <Ionicons name="location" size={16} color={Colors.primary} />
-                    <View style={styles.suggestionText}>
-                      <Text style={styles.suggestionName}>{suggestion.name}</Text>
-                      <Text style={styles.suggestionAddress}>{suggestion.address}</Text>
+                    <View style={styles.loadingContainer}>
+                      <Text style={styles.loadingText}>Searching locations...</Text>
                     </View>
                   </View>
-                </TouchableOpacity>
-              ))}
+                </View>
+              ) : locationSuggestions.length > 0 ? (
+                locationSuggestions.map((suggestion) => (
+                  <TouchableOpacity
+                    key={suggestion.id}
+                    style={styles.suggestionItem}
+                    onPress={() => selectLocation(suggestion)}
+                  >
+                    <View style={styles.suggestionContent}>
+                      <Ionicons name="location" size={16} color={Colors.primary} />
+                      <View style={styles.suggestionText}>
+                        <Text style={styles.suggestionName}>{suggestion.name}</Text>
+                        <Text style={styles.suggestionAddress}>{suggestion.address}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.suggestionItem}>
+                  <View style={styles.suggestionContent}>
+                    <Text style={styles.noResultsText}>No locations found</Text>
+                  </View>
+                </View>
+              )}
             </View>
           </BlurView>
         </View>
@@ -2669,6 +2715,19 @@ const styles = StyleSheet.create({
   suggestionAddress: {
     fontSize: FontSize.sm,
     color: 'rgba(255, 255, 255, 0.6)',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  loadingText: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  noResultsText: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontStyle: 'italic',
   },
   // Map Modal Styles
   mapModalContainer: {

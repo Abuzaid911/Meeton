@@ -47,7 +47,8 @@
     "react-native-svg": "15.11.2",
     "socket.io-client": "^4.8.1",
     "expo-notifications": "~0.31.4",
-    "expo-device": "~7.1.4"
+    "expo-device": "~7.1.4",
+    "expo-dev-client": "~5.2.4"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

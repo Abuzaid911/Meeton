@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,27 +7,160 @@ import {
   SafeAreaView,
   StatusBar,
   Dimensions,
-  ImageBackground,
+  Image,
   Alert,
-  KeyboardAvoidingView,
   Platform,
-  ScrollView,
+  Animated,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../contexts/AuthContext';
-import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../constants';
+import { Colors, Spacing, BorderRadius, FontSize, FontWeight } from '../../constants';
 
 const { width, height } = Dimensions.get('window');
 
 const LoginScreen: React.FC = () => {
   const { signInWithGoogle } = useAuth();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0.3)).current;
+  const taglineAnim = useRef(new Animated.Value(0)).current;
+  const buttonAnim = useRef(new Animated.Value(0)).current;
+  const legalTextAnim = useRef(new Animated.Value(0)).current;
 
+  useEffect(() => {
+    // Entrance animations
+    Animated.sequence([
+      // Logo entrance
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]),
+      // Tagline entrance
+      Animated.timing(taglineAnim, {
+        toValue: 1,
+        duration: 800,
+        delay: 300,
+        useNativeDriver: true,
+      }),
+      // Button entrance
+      Animated.spring(buttonAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 8,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+      // Legal text entrance
+      Animated.timing(legalTextAnim, {
+        toValue: 1,
+        duration: 600,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
+    // Complex logo animations
+    const createLogoAnimations = () => {
+      // Gentle rotation animation
+      const rotateAnimation = Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 20000, // 20 seconds for full rotation
+          useNativeDriver: true,
+        })
+      );
 
+      // Floating animation (up and down)
+      const floatAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(floatAnim, {
+            toValue: 1,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(floatAnim, {
+            toValue: 0,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+        ])
+      );
 
+      // Breathing pulse animation (more sophisticated)
+      const breathingAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.08,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 0.98,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+
+      // Glow intensity animation
+      const glowAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 0.8,
+            duration: 4000,
+            useNativeDriver: false, // shadowOpacity doesn't support native driver
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 0.3,
+            duration: 4000,
+            useNativeDriver: false,
+          }),
+        ])
+      );
+
+      return {
+        rotateAnimation,
+        floatAnimation,
+        breathingAnimation,
+        glowAnimation,
+      };
+    };
+    
+    // Start logo animations after initial entrance
+    setTimeout(() => {
+      const animations = createLogoAnimations();
+      animations.rotateAnimation.start();
+      animations.floatAnimation.start();
+      animations.breathingAnimation.start();
+      animations.glowAnimation.start();
+    }, 1500);
+
+    return () => {
+      // Cleanup would be handled here
+    };
+  }, []);
 
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
@@ -39,111 +172,158 @@ const LoginScreen: React.FC = () => {
     }
   };
 
-
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Background */}
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&h=600&fit=crop' }}
+      <LinearGradient
+        colors={['#000000', '#121212', '#000000']}
         style={styles.background}
-        imageStyle={styles.backgroundImage}
       >
-        {/* Dark overlay */}
-        <LinearGradient
-          colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.9)']}
-          style={styles.overlay}
-        />
+        {/* Decorative Curves and Light Effects */}
+        <View style={styles.curvedOverlay}>
+          <LinearGradient
+            colors={['rgba(30,64,255,0.02)', 'rgba(65,105,225,0.04)', 'rgba(30,64,255,0.02)']}
+            style={styles.curve1}
+          />
+          <LinearGradient
+            colors={['rgba(111,66,193,0.03)', 'rgba(138,43,226,0.05)', 'rgba(111,66,193,0.03)']}
+            style={styles.curve2}
+          />
+          <View style={styles.lightReflection1} />
+          <View style={styles.lightReflection2} />
+        </View>
 
-        <KeyboardAvoidingView 
-          style={styles.keyboardView}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <ScrollView 
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.logoContainer}>
-                <BlurView intensity={60} style={styles.logoBlur}>
-                  <View style={styles.logoContent}>
-                    <Ionicons name="calendar" size={32} color={Colors.white} />
-                  </View>
-                </BlurView>
+        <View style={styles.content}>
+          {/* Animated Logo */}
+          <View style={styles.header}>
+            <Animated.View style={[
+              styles.logoContainer,
+              {
+                shadowOpacity: glowAnim, // Non-native driver animation
+              }
+            ]}>
+              <Animated.View style={{
+                opacity: fadeAnim,
+                transform: [
+                  { scale: Animated.multiply(scaleAnim, pulseAnim) },
+                  { 
+                    translateY: floatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -10],
+                    })
+                  },
+                  {
+                    rotate: rotateAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg'],
+                    })
+                  },
+                ]
+              }}>
+                <Animated.View style={{
+                  transform: [
+                    {
+                      rotate: rotateAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', '-360deg'], // Counter-rotate the logo itself
+                      })
+                    }
+                  ]
+                }}>
+                  <Image 
+                    source={require('../../../assets/meetlogo.png')} 
+                    style={styles.logo}
+                    resizeMode="contain"
+                  />
+                </Animated.View>
+              </Animated.View>
+            </Animated.View>
+          </View>
+
+          {/* Enhanced Animated Tagline */}
+          <Animated.View style={[
+            styles.taglineContainer,
+            {
+              opacity: taglineAnim,
+              transform: [
+                {
+                  translateY: taglineAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  })
+                }
+              ]
+            }
+          ]}>
+            <BlurView intensity={15} tint="dark" style={styles.taglineBlur}>
+              <View style={styles.taglineContent}>
+                <Text style={styles.taglineMain}>Right Place, Right Time, Every Time</Text>
               </View>
-              <Text style={styles.title}>Welcome to MeetOn</Text>
-              <Text style={styles.subtitle}>Connect with friends and create amazing events together</Text>
-            </View>
+            </BlurView>
+          </Animated.View>
 
-            {/* Login Form */}
-            <View style={styles.formContainer}>
-              <BlurView intensity={100} tint="dark" style={styles.formBlur}>
-                <View style={styles.formContent}>
-
-
-                  {/* Enhanced Google Sign In Button */}
-                  <TouchableOpacity 
-                    style={[styles.googleButton, isGoogleLoading && styles.loginButtonDisabled]}
-                    onPress={handleGoogleLogin}
-                    disabled={isGoogleLoading}
-                  >
-                    <BlurView intensity={100} style={styles.googleButtonBlur}>
-                      <LinearGradient
-                        colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.85)']}
-                        style={styles.googleButtonGradient}
-                      >
-                        <View style={styles.googleIconContainer}>
-                          <Ionicons name="logo-google" size={24} color="#4285F4" />
-                        </View>
-                        <Text style={styles.googleButtonText}>
-                          {isGoogleLoading ? 'Signing In...' : 'Continue with Google'}
-                        </Text>
-                        {!isGoogleLoading && (
-                          <Ionicons name="arrow-forward" size={20} color={Colors.primary} />
-                        )}
-                      </LinearGradient>
-                    </BlurView>
-                  </TouchableOpacity>
-
-                  {/* Security & Privacy Notice */}
-                  <View style={styles.privacyNotice}>
-                    <Ionicons name="shield-checkmark" size={16} color={Colors.systemGreen} />
-                    <Text style={styles.privacyText}>
-                      We protect your privacy and never share your personal information
-                    </Text>
+          {/* Animated Google Sign In Button */}
+          <Animated.View style={{
+            opacity: buttonAnim,
+            transform: [
+              {
+                scale: buttonAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                })
+              }
+            ]
+          }}>
+            <TouchableOpacity 
+              style={[styles.googleButton, isGoogleLoading && styles.buttonDisabled]}
+              onPress={handleGoogleLogin}
+              disabled={isGoogleLoading}
+              activeOpacity={0.8}
+            >
+              <BlurView intensity={10} tint="dark" style={styles.googleButtonBlur}>
+                <View style={styles.googleButtonContent}>
+                  <View style={styles.googleIconContainer}>
+                    <Image 
+                      source={require('../../../assets/googlelogo1.png')} 
+                      style={styles.googleIcon}
+                      resizeMode="contain"
+                    />
                   </View>
-
-
-
-
+                  <Text style={styles.googleButtonText}>
+                    {isGoogleLoading ? 'Loading...' : 'Sign in with Google'}
+                  </Text>
                 </View>
               </BlurView>
-            </View>
+            </TouchableOpacity>
+          </Animated.View>
 
-            {/* Additional Features */}
-            <View style={styles.featuresContainer}>
-              <Text style={styles.featuresTitle}>Join thousands of event creators</Text>
-              <View style={styles.featuresList}>
-                <View style={styles.featureItem}>
-                  <Ionicons name="calendar" size={20} color={Colors.primary} />
-                  <Text style={styles.featureText}>Create and manage events easily</Text>
-                </View>
-                <View style={styles.featureItem}>
-                  <Ionicons name="people" size={20} color={Colors.primary} />
-                  <Text style={styles.featureText}>Connect with friends and communities</Text>
-                </View>
-                <View style={styles.featureItem}>
-                  <Ionicons name="notifications" size={20} color={Colors.primary} />
-                  <Text style={styles.featureText}>Stay updated with smart notifications</Text>
-                </View>
-              </View>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </ImageBackground>
+          {/* Legal Links */}
+          <Animated.View style={[
+            styles.legalContainer,
+            {
+              opacity: legalTextAnim,
+              transform: [
+                {
+                  translateY: legalTextAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  })
+                }
+              ]
+            }
+          ]}>
+            <TouchableOpacity>
+              <Text style={styles.legalText}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalSeparator}>•</Text>
+            <TouchableOpacity>
+              <Text style={styles.legalText}>Terms of Service</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+        </View>
+      </LinearGradient>
     </SafeAreaView>
   );
 };
@@ -151,266 +331,196 @@ const LoginScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.black,
+    backgroundColor: '#000000',
   },
   background: {
     flex: 1,
     width,
     height,
   },
-  backgroundImage: {
-    width: '100%',
-    height: '100%',
-  },
-  overlay: {
+  curvedOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
+    overflow: 'hidden',
   },
-  keyboardView: {
+  curve1: {
+    position: 'absolute',
+    top: -100,
+    left: -50,
+    right: -50,
+    height: 300,
+    borderRadius: 200,
+    transform: [{ rotate: '15deg' }],
+  },
+  curve2: {
+    position: 'absolute',
+    top: height * 0.6,
+    left: -100,
+    right: -100,
+    height: 400,
+    borderRadius: 250,
+    transform: [{ rotate: '-10deg' }],
+  },
+  lightReflection1: {
+    position: 'absolute',
+    top: height * 0.1,
+    right: -width * 0.3,
+    width: width * 0.8,
+    height: width * 0.8,
+    borderRadius: width * 0.4,
+    backgroundColor: 'rgba(65,105,225,0.03)',
+    transform: [{ rotate: '25deg' }],
+  },
+  lightReflection2: {
+    position: 'absolute',
+    bottom: height * 0.15,
+    left: -width * 0.2,
+    width: width * 0.6,
+    height: width * 0.6,
+    borderRadius: width * 0.3,
+    backgroundColor: 'rgba(138,43,226,0.03)',
+    transform: [{ rotate: '-15deg' }],
+  },
+  content: {
     flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.xxl,
+    paddingTop: height * 0.1,
+    paddingBottom: height * 0.15,
   },
   header: {
     alignItems: 'center',
-    marginBottom: Spacing.xxl,
+    marginBottom: height * 0.08,
   },
   logoContainer: {
-    marginBottom: Spacing.lg,
-  },
-  logoBlur: {
-    borderRadius: 25,
-    overflow: 'hidden',
-  },
-  logoContent: {
-    width: 80,
-    height: 80,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    marginBottom: Spacing.xl,
+    alignItems: 'center',
     justifyContent: 'center',
+    // Enhanced glow effect for better visibility
+    shadowColor: '#ffffff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 25,
+    elevation: 15,
+    // Add background circle for more prominence
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+    // borderWidth: 1,
+    // borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  logo: {
+    width: 180,
+    height: 180,
+    // Full opacity for maximum visibility
+    opacity: 1,
+    tintColor: '#ffffff',
+  },
+
+  // Enhanced tagline styles
+  taglineContainer: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: height * 0.12,
+    width: width * 0.85,
+    alignSelf: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  taglineBlur: {
+    borderRadius: 24,
+  },
+  taglineContent: {
+    paddingHorizontal: Spacing.xxl,
+    paddingVertical: Spacing.xl,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
   },
-  title: {
-    fontSize: FontSize.xxxl,
-    fontWeight: FontWeight.bold,
+  taglineMain: {
+    fontSize: 28,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'Roboto',
     color: Colors.white,
-    marginBottom: Spacing.sm,
     textAlign: 'center',
+    lineHeight: 36,
   },
-  subtitle: {
-    fontSize: FontSize.lg,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  formContainer: {
-    borderRadius: 20,
+
+  googleButton: {
+    width: width * 0.8,
+    borderRadius: 30,
     overflow: 'hidden',
     marginBottom: Spacing.xl,
-    ...Shadows.large,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  formBlur: {
-    borderRadius: 20,
-  },
-  formContent: {
-    padding: Spacing.xl,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  inputContainer: {
-    marginBottom: Spacing.lg,
-  },
-  inputLabelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  inputLabel: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  inputBlur: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-  },
-  textInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    fontSize: FontSize.md,
-    color: Colors.white,
-    minHeight: 50,
-  },
-  passwordContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    minHeight: 50,
-  },
-  passwordInput: {
-    flex: 1,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    fontSize: FontSize.md,
-    color: Colors.white,
-  },
-  passwordToggle: {
-    paddingHorizontal: Spacing.md,
-  },
-  forgotPasswordContainer: {
-    alignItems: 'flex-end',
-    marginBottom: Spacing.xl,
-  },
-  forgotPasswordText: {
-    fontSize: FontSize.md,
-    color: Colors.primary,
-    fontWeight: FontWeight.medium,
-  },
-  loginButton: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    marginBottom: Spacing.md,
-    ...Shadows.medium,
-  },
-  loginButtonDisabled: {
+  buttonDisabled: {
     opacity: 0.7,
   },
-  loginButtonBlur: {
-    borderRadius: BorderRadius.lg,
-  },
-  loginButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.xl,
-    gap: Spacing.sm,
-  },
-  loginButtonText: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-  },
-  googleButton: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    marginBottom: Spacing.lg,
-    ...Shadows.medium,
-  },
   googleButtonBlur: {
-    borderRadius: BorderRadius.lg,
+    borderRadius: 30,
   },
-  googleButtonGradient: {
+  googleButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.lg,
+    paddingVertical: 18,
     paddingHorizontal: Spacing.xl,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     gap: Spacing.md,
-    borderRadius: BorderRadius.lg,
   },
   googleIconContainer: {
     width: 24,
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
   },
   googleButtonText: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.black,
-    flex: 1,
-    textAlign: 'center',
-  },
-  privacyNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.lg,
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
-  },
-  privacyText: {
-    fontSize: FontSize.sm,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    flex: 1,
-    lineHeight: 18,
-  },
-  featuresContainer: {
-    alignItems: 'center',
-    marginTop: Spacing.xl,
-  },
-  featuresTitle: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.semibold,
+    fontSize: 18,
+    fontWeight: '600',
     color: Colors.white,
-    marginBottom: Spacing.lg,
     textAlign: 'center',
   },
-  featuresList: {
-    gap: Spacing.md,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  featureText: {
-    fontSize: FontSize.md,
-    color: 'rgba(255, 255, 255, 0.9)',
-    flex: 1,
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: Spacing.lg,
-    paddingHorizontal: Spacing.md,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  dividerText: {
-    fontSize: FontSize.sm,
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginHorizontal: Spacing.lg,
-    fontWeight: FontWeight.medium,
-  },
-
-  signUpContainer: {
+  
+  // Legal links at bottom
+  legalContainer: {
+    position: 'absolute',
+    bottom: 40,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  signUpText: {
-    fontSize: FontSize.md,
-    color: 'rgba(255, 255, 255, 0.8)',
+  legalText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '400',
   },
-  signUpLink: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: Colors.primary,
-  },
+  legalSeparator: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.4)',
+    marginHorizontal: 8,
+  }
 });
 
-export default LoginScreen; 
+export default LoginScreen;

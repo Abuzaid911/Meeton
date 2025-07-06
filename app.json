@@ -20,7 +20,9 @@
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select images for your events.",
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to help you set event locations and show nearby events.",
         "NSUserNotificationUsageDescription": "This app needs access to notifications to send you updates about events, friend requests, and other important information.",
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "google",
@@ -43,7 +45,6 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "googleServicesFile": "./android/app/google-services.json",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -77,6 +78,11 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6fadae37-5814-4d63-91f4-09e3b48c3976"
+      }
+    }
   }
 }

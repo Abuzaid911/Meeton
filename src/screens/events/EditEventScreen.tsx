@@ -219,7 +219,10 @@ const EditEventScreen: React.FC = () => {
         
         // Pre-populate form with existing event data
         const eventDate = new Date(eventData.date);
-        const formattedDate = eventDate.toISOString().split('T')[0];
+        const year = eventDate.getFullYear();
+        const month = (eventDate.getMonth() + 1).toString().padStart(2, '0');
+        const day = eventDate.getDate().toString().padStart(2, '0');
+        const formattedDate = `${year}-${month}-${day}`;
         
         setForm({
           name: eventData.name || '',
@@ -459,7 +462,11 @@ const EditEventScreen: React.FC = () => {
   };
 
   const handleDateSelection = (date: Date) => {
-    const formattedDate = date.toISOString().split('T')[0];
+    // Store date in YYYY-MM-DD format using local timezone to avoid date shift issues
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
     updateForm('date', formattedDate);
     setShowDatePicker(false);
   };

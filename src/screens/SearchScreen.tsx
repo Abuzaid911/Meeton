@@ -37,7 +37,6 @@ const SearchScreen: React.FC = () => {
     { id: 'all', name: 'All', icon: 'grid' },
     { id: 'events', name: 'Events', icon: 'calendar' },
     { id: 'users', name: 'People', icon: 'people' },
-    { id: 'nearby', name: 'Nearby', icon: 'location' },
   ];
 
   // Debounced search function

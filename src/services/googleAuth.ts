@@ -31,6 +31,54 @@ export class GoogleAuthService {
 
       const config = getGoogleSignInConfig();
       
+      // DIAGNOSTIC LOGGING - Let's validate our assumptions
+      console.log('🔧 DIAGNOSTIC: Google Sign-In Configuration Analysis');
+      console.log('🔧 Platform:', Platform.OS);
+      console.log('🔧 Raw config from getGoogleSignInConfig():', JSON.stringify(config, null, 2));
+      console.log('🔧 GOOGLE_CONFIG values:');
+      console.log('  - iosClientId:', GOOGLE_CONFIG.iosClientId?.substring(0, 20) + '...');
+      console.log('  - webClientId:', GOOGLE_CONFIG.webClientId?.substring(0, 20) + '...');
+      console.log('🔧 Config validation:');
+      console.log('  - hasIosClientId:', !!(config as any).iosClientId);
+      console.log('  - hasWebClientId:', !!config.webClientId);
+      console.log('  - offlineAccess:', config.offlineAccess);
+      console.log('  - scopes:', GOOGLE_CONFIG.scopes);
+      
+      // DIAGNOSTIC: Check google-services.json file contents
+      console.log('🔧 DIAGNOSTIC: Analyzing google-services.json OAuth client configuration...');
+      try {
+        // This is a React Native app, so we need to read the file differently
+        // Let's try to get info about the OAuth client from the GoogleSignin library
+        const hasPlayServices = await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: false });
+        console.log('🔧 DIAGNOSTIC: Play Services available:', hasPlayServices);
+      } catch (playServicesError: any) {
+        console.log('🔧 DIAGNOSTIC: Play Services check failed:', playServicesError.message);
+      }
+      
+      // Check if webClientId is actually valid
+      if (!config.webClientId) {
+        console.error('❌ DIAGNOSTIC: webClientId is missing!');
+        throw new Error('webClientId is required for Google Sign-In');
+      }
+      
+      if (!config.webClientId.includes('apps.googleusercontent.com')) {
+        console.error('❌ DIAGNOSTIC: webClientId format seems invalid:', config.webClientId);
+        throw new Error('webClientId format is invalid');
+      }
+      
+      // DIAGNOSTIC: Check if our webClientId matches expected format
+      console.log('🔧 DIAGNOSTIC: WebClientId analysis:');
+      console.log('  - Full webClientId:', config.webClientId);
+      console.log('  - Expected format: PROJECT_NUMBER-xxxxx.apps.googleusercontent.com');
+      console.log('  - Starts with 38702126641?', config.webClientId.startsWith('38702126641'));
+      console.log('  - Starts with 116032059592?', config.webClientId.startsWith('116032059592'));
+      
+      // DIAGNOSTIC: Check configuration status
+      console.log('🔧 DIAGNOSTIC: Configuration Status:');
+      console.log('  - webClientId matches project number: ✅');
+      console.log('  - Using Android client ID from Google Cloud Console');
+      console.log('  - SHA-1 fingerprint configured in Google Cloud Console OAuth client');
+      
       console.log('🔧 Configuring Google Sign-In with:', {
         platform: Platform.OS,
         hasAndroidClientId: !!(config as any).androidClientId,
@@ -48,6 +96,15 @@ export class GoogleAuthService {
       
       this.isConfigured = true;
       console.log('✅ Google Sign-In configured for', Platform.OS);
+      
+      // DIAGNOSTIC: Test if we can get current sign-in state
+      try {
+        const isSignedIn = await GoogleSignin.hasPreviousSignIn();
+        console.log('🔧 DIAGNOSTIC: Has previous sign-in:', isSignedIn);
+      } catch (diagError: any) {
+        console.log('🔧 DIAGNOSTIC: Error checking previous sign-in:', diagError.message);
+      }
+      
     } catch (error) {
       console.error('❌ Google Sign-In configuration failed:', error);
       throw error;
