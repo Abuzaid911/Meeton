@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Platform,
   Alert,
   Modal,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,7 +29,7 @@ import ImageUploader from '../../components/common/ImageUploader';
 import { ImageType } from '../../services/imageService';
 import { locationSearchService, LocationSuggestion as LocationSearchSuggestion } from '../../services/locationSearchService';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 interface EventForm {
   name: string;
@@ -47,7 +48,6 @@ interface EventForm {
     longitude: number;
   } | null;
   invitedFriends: string[];
-  maxGuests: string;
 }
 
 // Use LocationSuggestion from the service
@@ -184,11 +184,14 @@ const CreateEventScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
-  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+
   const [isCreating, setIsCreating] = useState(false);
   const [isSearchingLocations, setIsSearchingLocations] = useState(false);
+  const [showLocationSearchModal, setShowLocationSearchModal] = useState(false);
   const [showLocationNameModal, setShowLocationNameModal] = useState(false);
   const [selectedLocationForNaming, setSelectedLocationForNaming] = useState<LocationSuggestion | null>(null);
+  const [customLocationName, setCustomLocationName] = useState('');
+  const [tempLocationQuery, setTempLocationQuery] = useState('');
   const [createdEventId, setCreatedEventId] = useState<string | null>(null);
   const [friends, setFriends] = useState<Array<{id: string; name: string; image: string}>>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
@@ -206,7 +209,6 @@ const CreateEventScreen: React.FC = () => {
     locationDisplayName: '',
     coordinates: null,
     invitedFriends: [],
-    maxGuests: '',
   });
 
   useEffect(() => {
@@ -336,7 +338,6 @@ const CreateEventScreen: React.FC = () => {
         headerColor: form.color,
         headerImageUrl: form.image || undefined,
         duration: 180, // Default 3 hours in minutes
-        capacity: form.maxGuests ? parseInt(form.maxGuests) : undefined,
         tags: form.type ? [form.type] : [],
       });
 
@@ -370,10 +371,9 @@ const CreateEventScreen: React.FC = () => {
   };
 
   // Real-world location search using Google Places API
-  const searchLocations = async (query: string) => {
+  const searchLocations = useCallback(async (query: string) => {
     if (query.length < 2) {
       setLocationSuggestions([]);
-      setShowLocationSuggestions(false);
       return;
     }
 
@@ -381,7 +381,6 @@ const CreateEventScreen: React.FC = () => {
       console.warn('Google Places API is not configured. Please add your API key to locationSearchService.ts');
       // Fallback to basic search for development
       setLocationSuggestions([]);
-      setShowLocationSuggestions(false);
       return;
     }
 
@@ -389,38 +388,77 @@ const CreateEventScreen: React.FC = () => {
       setIsSearchingLocations(true);
       const suggestions = await locationSearchService.searchLocations(query, 5);
       setLocationSuggestions(suggestions);
-      setShowLocationSuggestions(suggestions.length > 0);
     } catch (error) {
       console.error('Error searching locations:', error);
       Alert.alert('Search Error', 'Unable to search locations. Please try again.');
       setLocationSuggestions([]);
-      setShowLocationSuggestions(false);
     } finally {
       setIsSearchingLocations(false);
     }
-  };
+  }, []);
 
-  const handleLocationInputChange = (text: string) => {
-    setLocationQuery(text);
-    updateForm('location', text);
+  const handleLocationInputChange = useCallback((text: string) => {
+    setTempLocationQuery(text);
     
-    // Debounce the search to avoid too many API calls
+    // Clear previous timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
     
+    // Clear suggestions immediately for short queries
+    if (text.length < 2) {
+      setLocationSuggestions([]);
+      setIsSearchingLocations(false);
+      return;
+    }
+    
+    // Set loading state and debounce the search
+    setIsSearchingLocations(true);
     searchTimeoutRef.current = setTimeout(() => {
       searchLocations(text);
-    }, 300); // Wait 300ms after user stops typing
-  };
+    }, 300);
+  }, [searchLocations]);
 
   // Add search timeout ref
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const openLocationSearch = useCallback(() => {
+    setTempLocationQuery(locationQuery);
+    setLocationSuggestions([]);
+    setIsSearchingLocations(false);
+    setShowLocationSearchModal(true);
+  }, [locationQuery]);
+
+  const closeLocationSearch = useCallback(() => {
+    setShowLocationSearchModal(false);
+    setTempLocationQuery('');
+    setLocationSuggestions([]);
+    setIsSearchingLocations(false);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+  }, []);
+
+  const clearSearchInput = useCallback(() => {
+    setTempLocationQuery('');
+    setLocationSuggestions([]);
+  }, []);
+
+  const handleSuggestionSelect = useCallback((suggestion: LocationSuggestion) => {
+    setLocationQuery(suggestion.name);
+    updateForm('locationDisplayName', suggestion.name);
+    updateForm('location', suggestion.address);
+    updateForm('coordinates', {
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude
+    });
+    closeLocationSearch();
+  }, [closeLocationSearch, updateForm, setLocationQuery]);
+
   const selectLocation = (location: LocationSuggestion) => {
     setSelectedLocationForNaming(location);
+    setCustomLocationName(location.name); // Pre-fill with suggestion name
     setShowLocationNameModal(true);
-    setShowLocationSuggestions(false);
   };
 
   const confirmLocationWithName = (customName?: string) => {
@@ -436,9 +474,10 @@ const CreateEventScreen: React.FC = () => {
     }
     setShowLocationNameModal(false);
     setSelectedLocationForNaming(null);
+    setCustomLocationName('');
   };
 
-  const getCurrentLocation = async () => {
+  const getCurrentLocation = useCallback(async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       
@@ -473,11 +512,22 @@ const CreateEventScreen: React.FC = () => {
     } catch (error) {
       Alert.alert('Error', 'Could not get your current location. Please try again.');
     }
-  };
+  }, [updateForm, setLocationQuery]);
 
-  const openMapPicker = () => {
+  const openMapPicker = useCallback(() => {
     setShowMapPicker(true);
-  };
+  }, []);
+
+  // Additional useCallback hooks defined after function declarations
+  const handleCurrentLocationPress = useCallback(() => {
+    getCurrentLocation();
+    closeLocationSearch();
+  }, [getCurrentLocation, closeLocationSearch]);
+
+  const handleMapPickerPress = useCallback(() => {
+    closeLocationSearch();
+    openMapPicker();
+  }, [closeLocationSearch, openMapPicker]);
 
   const handleMapLocationSelect = (coordinate: { latitude: number; longitude: number }) => {
     // Create a location object for the naming modal
@@ -822,7 +872,7 @@ const CreateEventScreen: React.FC = () => {
     );
   };
 
-  // Location Input with Suggestions Component
+  // Simplified Location Input - Opens Modal for Search
   const LocationInput: React.FC = () => (
     <View style={styles.inputContainer}>
       <View style={styles.inputLabelContainer}>
@@ -830,24 +880,27 @@ const CreateEventScreen: React.FC = () => {
         <Text style={styles.inputLabel}>Location</Text>
       </View>
       
-      <BlurView intensity={80} style={styles.inputBlur}>
-        <TextInput
-          style={styles.textInput}
-          value={locationQuery}
-          onChangeText={handleLocationInputChange}
-          placeholder="Where is it happening?"
-          placeholderTextColor="rgba(255, 255, 255, 0.5)"
-          onFocus={() => {
-            if (locationSuggestions.length > 0) {
-              setShowLocationSuggestions(true);
-            }
-          }}
-        />
-      </BlurView>
+      <TouchableOpacity onPress={openLocationSearch}>
+        <BlurView intensity={80} style={styles.inputBlur}>
+          <View style={[styles.textInput, styles.locationInputDisplay]}>
+            <Text style={[
+              styles.locationDisplayText,
+              !locationQuery && styles.locationPlaceholderText
+            ]}>
+              {locationQuery || "Tap to search locations..."}
+            </Text>
+            <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.6)" />
+          </View>
+        </BlurView>
+      </TouchableOpacity>
 
       {/* Quick Location Actions */}
       <View style={styles.locationActions}>
-        <TouchableOpacity style={styles.locationActionButton} onPress={getCurrentLocation}>
+        <TouchableOpacity 
+          style={styles.locationActionButton} 
+          onPress={getCurrentLocation}
+          activeOpacity={0.7}
+        >
           <BlurView intensity={60} style={styles.locationActionBlur}>
             <View style={styles.locationActionContent}>
               <Ionicons name="navigate" size={16} color={Colors.primary} />
@@ -856,7 +909,11 @@ const CreateEventScreen: React.FC = () => {
           </BlurView>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.locationActionButton} onPress={openMapPicker}>
+        <TouchableOpacity 
+          style={styles.locationActionButton} 
+          onPress={openMapPicker}
+          activeOpacity={0.7}
+        >
           <BlurView intensity={60} style={styles.locationActionBlur}>
             <View style={styles.locationActionContent}>
               <Ionicons name="map" size={16} color={Colors.primary} />
@@ -865,49 +922,10 @@ const CreateEventScreen: React.FC = () => {
           </BlurView>
         </TouchableOpacity>
       </View>
-
-      {/* Location Suggestions */}
-      {(showLocationSuggestions || isSearchingLocations) && (
-        <View style={styles.suggestionsContainer}>
-          <BlurView intensity={80} style={styles.suggestionsBlur}>
-            <View style={styles.suggestionsContent}>
-              {isSearchingLocations ? (
-                <View style={styles.suggestionItem}>
-                  <View style={styles.suggestionContent}>
-                    <View style={styles.loadingContainer}>
-                      <Text style={styles.loadingText}>Searching locations...</Text>
-                    </View>
-                  </View>
-                </View>
-              ) : locationSuggestions.length > 0 ? (
-                locationSuggestions.map((suggestion) => (
-                  <TouchableOpacity
-                    key={suggestion.id}
-                    style={styles.suggestionItem}
-                    onPress={() => selectLocation(suggestion)}
-                  >
-                    <View style={styles.suggestionContent}>
-                      <Ionicons name="location" size={16} color={Colors.primary} />
-                      <View style={styles.suggestionText}>
-                        <Text style={styles.suggestionName}>{suggestion.name}</Text>
-                        <Text style={styles.suggestionAddress}>{suggestion.address}</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))
-              ) : (
-                <View style={styles.suggestionItem}>
-                  <View style={styles.suggestionContent}>
-                    <Text style={styles.noResultsText}>No locations found</Text>
-                  </View>
-                </View>
-              )}
-            </View>
-          </BlurView>
-        </View>
-      )}
     </View>
   );
+
+
 
   // Map Picker Modal Component
   const MapPickerModal: React.FC = () => (
@@ -1270,6 +1288,20 @@ const CreateEventScreen: React.FC = () => {
 
         <LocationInput />
 
+        {/* Location Search Modal */}
+        <LocationSearchModal 
+          visible={showLocationSearchModal}
+          tempLocationQuery={tempLocationQuery}
+          locationSuggestions={locationSuggestions}
+          isSearchingLocations={isSearchingLocations}
+          onClose={closeLocationSearch}
+          onTextChange={handleLocationInputChange}
+          onClearInput={clearSearchInput}
+          onSuggestionSelect={handleSuggestionSelect}
+          onCurrentLocationPress={handleCurrentLocationPress}
+          onMapPickerPress={handleMapPickerPress}
+        />
+
         {/* Map Preview */}
         <View style={styles.inputContainer}>
           <View style={styles.inputLabelContainer}>
@@ -1319,7 +1351,7 @@ const CreateEventScreen: React.FC = () => {
     </View>
   );
 
-  // Step 3: Invite Friends, Max Guests
+  // Step 3: Invite Friends
   const renderStep3 = () => (
     <View style={styles.stepContainer}>
       <View style={styles.stepHeader}>
@@ -1365,11 +1397,7 @@ const CreateEventScreen: React.FC = () => {
                     : [...form.invitedFriends, friend.id];
                   updateForm('invitedFriends', updatedFriends);
                   
-                  // Auto-update max guests to number of invited friends (if not already higher)
-                  const currentMax = parseInt(form.maxGuests) || 0;
-                  if (updatedFriends.length > currentMax) {
-                    updateForm('maxGuests', updatedFriends.length.toString());
-                  }
+                          // Friends updated successfully
                 }}
               >
                 <BlurView intensity={80} style={styles.friendBlur}>
@@ -1389,14 +1417,7 @@ const CreateEventScreen: React.FC = () => {
           </View>
         </View>
 
-        <InputField
-          label="Max Guests (Optional)"
-          value={form.maxGuests}
-          onChangeText={(text) => updateForm('maxGuests', text)}
-          placeholder={form.invitedFriends.length > 0 ? `${form.invitedFriends.length} invited, increase if needed` : "Leave blank for unlimited"}
-          icon="people-outline"
-          numeric={true}
-        />
+
       </View>
     </View>
   );
@@ -1561,15 +1582,6 @@ const CreateEventScreen: React.FC = () => {
           Your event "{form.name}" has been created successfully
         </Text>
 
-        <View style={styles.shareContainer}>
-          <BlurView intensity={80} style={styles.shareBlur}>
-            <View style={styles.shareContent}>
-              <Text style={styles.shareLabel}>Event Link</Text>
-              <Text style={styles.shareLink}>meetup.app/event/abc123</Text>
-            </View>
-          </BlurView>
-        </View>
-
         <View style={styles.shareButtons}>
           <GlassButton
             title="Share Link"
@@ -1608,7 +1620,6 @@ const CreateEventScreen: React.FC = () => {
                 locationDisplayName: '',
                 coordinates: null,
                 invitedFriends: [],
-                maxGuests: '',
               });
               setCreatedEventId(null);
               setCurrentStep(1);
@@ -2698,10 +2709,160 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
-  suggestionContent: {
+  // Location Input Display Styles
+  locationInputDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  locationDisplayText: {
+    fontSize: FontSize.md,
+    color: Colors.white,
+    flex: 1,
+  },
+  locationPlaceholderText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+
+  // Location Search Modal Styles
+  locationSearchModalContainer: {
+    flex: 1,
+    backgroundColor: Colors.black,
+    paddingTop: Platform.OS === 'ios' ? 44 : 0,
+  },
+  locationSearchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  closeButton: {
+    padding: Spacing.sm,
+  },
+  locationSearchTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+  },
+  locationSearchInputContainer: {
+    padding: Spacing.lg,
+  },
+  locationSearchInputContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    gap: Spacing.sm,
+  },
+  locationSearchInput: {
+    flex: 1,
+    fontSize: FontSize.md,
+    color: Colors.white,
+    minHeight: 24,
+  },
+  locationSearchResults: {
+    flex: 1,
+  },
+  locationSearchResultsContent: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+  },
+  locationSearchResultsContainer: {
+    flexGrow: 1,
+  },
+  locationSearchLoading: {
+    paddingVertical: Spacing.xl,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locationSearchLoadingText: {
+    fontSize: FontSize.md,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  locationSuggestionItem: {
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+  },
+  locationSuggestionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     gap: Spacing.md,
+  },
+  locationSuggestionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locationSuggestionTextContainer: {
+    flex: 1,
+  },
+  locationSuggestionName: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: Colors.white,
+    marginBottom: Spacing.xs,
+  },
+  locationSuggestionAddress: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.7)',
+    lineHeight: 18,
+  },
+  locationSearchEmpty: {
+    paddingVertical: Spacing.xl * 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  locationSearchEmptyTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  locationSearchEmptySubtitle: {
+    fontSize: FontSize.md,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  locationSearchQuickActions: {
+    padding: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+  },
+  locationQuickActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    gap: Spacing.md,
+  },
+  locationQuickActionText: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.medium,
+    color: Colors.white,
   },
   suggestionText: {
     flex: 1,
@@ -2944,57 +3105,132 @@ const styles = StyleSheet.create({
   },
   locationNameModalContainer: {
     margin: Spacing.lg,
-    borderRadius: 20,
+    marginTop: height * 0.1,
+    borderRadius: 24,
     overflow: 'hidden',
     ...Shadows.large,
   },
   locationNameModalBlur: {
-    borderRadius: 20,
+    borderRadius: 24,
   },
   locationNameModalContent: {
     padding: Spacing.xl,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  locationModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
   },
   locationNameModalTitle: {
     fontSize: FontSize.xl,
     fontWeight: FontWeight.bold,
     color: Colors.white,
-    textAlign: 'center',
-    marginBottom: Spacing.sm,
+  },
+  locationModalCloseButton: {
+    padding: Spacing.sm,
+  },
+  locationDetailsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  locationIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  locationDetailsText: {
+    flex: 1,
   },
   locationNameModalSubtitle: {
     fontSize: FontSize.lg,
-    fontWeight: FontWeight.semibold,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
     marginBottom: Spacing.xs,
   },
   locationNameModalAddress: {
     fontSize: FontSize.md,
-    color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 20,
+    marginBottom: Spacing.xs,
+  },
+  locationCoordinates: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  locationNameInputSection: {
+    marginBottom: Spacing.xl,
+  },
+  locationInputLabel: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: Spacing.sm,
   },
   locationNameInputContainer: {
-    marginBottom: Spacing.lg,
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
+    marginBottom: Spacing.sm,
   },
   locationNameInputBlur: {
     borderRadius: BorderRadius.lg,
   },
   locationNameInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.lg,
     fontSize: FontSize.md,
     color: Colors.white,
-    minHeight: 50,
+    minHeight: 52,
+  },
+  locationInputHelper: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.6)',
+    lineHeight: 18,
+  },
+  quickNameSuggestions: {
+    marginBottom: Spacing.xl,
+  },
+  quickNameTitle: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: Spacing.sm,
+  },
+  quickNameButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  quickNameButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  quickNameButtonText: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: FontWeight.medium,
   },
   locationNameModalButtons: {
     flexDirection: 'row',
@@ -3002,9 +3238,12 @@ const styles = StyleSheet.create({
   },
   locationNameModalButton: {
     flex: 1,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
   },
   locationNameModalButtonPrimary: {
     backgroundColor: Colors.primary,
@@ -3016,7 +3255,7 @@ const styles = StyleSheet.create({
   },
   locationNameModalButtonText: {
     fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
+    fontWeight: FontWeight.bold,
     color: Colors.white,
   },
   locationNameModalButtonTextSecondary: {
@@ -3101,5 +3340,172 @@ const styles = StyleSheet.create({
   },
 
 });
+
+// Optimized Location Search Modal - Outside main component to prevent re-renders
+interface LocationSearchModalProps {
+  visible: boolean;
+  tempLocationQuery: string;
+  locationSuggestions: LocationSuggestion[];
+  isSearchingLocations: boolean;
+  onClose: () => void;
+  onTextChange: (text: string) => void;
+  onClearInput: () => void;
+  onSuggestionSelect: (suggestion: LocationSuggestion) => void;
+  onCurrentLocationPress: () => void;
+  onMapPickerPress: () => void;
+}
+
+const LocationSearchModal: React.FC<LocationSearchModalProps> = React.memo(({
+  visible,
+  tempLocationQuery,
+  locationSuggestions,
+  isSearchingLocations,
+  onClose,
+  onTextChange,
+  onClearInput,
+  onSuggestionSelect,
+  onCurrentLocationPress,
+  onMapPickerPress,
+}) => {
+  if (!visible) return null;
+  
+  return (
+    <Modal 
+      visible={visible} 
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={onClose}
+    >
+      <View style={styles.locationSearchModalContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        
+        {/* Header */}
+        <View style={styles.locationSearchHeader}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </TouchableOpacity>
+          <Text style={styles.locationSearchTitle}>Search Location</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        {/* Search Input */}
+        <View style={styles.locationSearchInputContainer}>
+          <View style={styles.locationSearchInputContent}>
+            <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.7)" />
+            <TextInput
+              style={styles.locationSearchInput}
+              value={tempLocationQuery}
+              onChangeText={onTextChange}
+              placeholder="Search for a location..."
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              returnKeyType="search"
+              autoCorrect={false}
+              autoCapitalize="words"
+              blurOnSubmit={false}
+              autoFocus={true}
+              selectTextOnFocus={true}
+              enablesReturnKeyAutomatically={false}
+            />
+            {tempLocationQuery.length > 0 && (
+              <TouchableOpacity onPress={onClearInput}>
+                <Ionicons name="close-circle" size={20} color="rgba(255, 255, 255, 0.6)" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Results */}
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.locationSearchResults}
+        >
+          <ScrollView 
+            style={styles.locationSearchResultsContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.locationSearchResultsContainer}
+          >
+            {isSearchingLocations ? (
+              <View style={styles.locationSearchLoading}>
+                <Text style={styles.locationSearchLoadingText}>Searching locations...</Text>
+              </View>
+            ) : locationSuggestions.length > 0 ? (
+              locationSuggestions.map((suggestion) => (
+                <LocationSuggestionItem
+                  key={suggestion.id}
+                  suggestion={suggestion}
+                  onPress={onSuggestionSelect}
+                />
+              ))
+            ) : tempLocationQuery.length > 1 ? (
+              <View style={styles.locationSearchEmpty}>
+                <Ionicons name="search" size={48} color="rgba(255, 255, 255, 0.4)" />
+                <Text style={styles.locationSearchEmptyTitle}>No locations found</Text>
+                <Text style={styles.locationSearchEmptySubtitle}>
+                  Try searching with different keywords
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.locationSearchEmpty}>
+                <Ionicons name="location-outline" size={48} color="rgba(255, 255, 255, 0.4)" />
+                <Text style={styles.locationSearchEmptyTitle}>Search for locations</Text>
+                <Text style={styles.locationSearchEmptySubtitle}>
+                  Type in the search box above to find places
+                </Text>
+              </View>
+            )}
+
+            {/* Quick Actions */}
+            <View style={styles.locationSearchQuickActions}>
+              <TouchableOpacity 
+                style={styles.locationQuickActionButton}
+                onPress={onCurrentLocationPress}
+              >
+                <Ionicons name="navigate" size={20} color={Colors.primary} />
+                <Text style={styles.locationQuickActionText}>Use Current Location</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.locationQuickActionButton}
+                onPress={onMapPickerPress}
+              >
+                <Ionicons name="map" size={20} color={Colors.primary} />
+                <Text style={styles.locationQuickActionText}>Choose on Map</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+});
+
+// Optimized Suggestion Item Component
+interface LocationSuggestionItemProps {
+  suggestion: LocationSuggestion;
+  onPress: (suggestion: LocationSuggestion) => void;
+}
+
+const LocationSuggestionItem: React.FC<LocationSuggestionItemProps> = React.memo(({
+  suggestion,
+  onPress,
+}) => (
+  <TouchableOpacity
+    style={styles.locationSuggestionItem}
+    onPress={() => onPress(suggestion)}
+    activeOpacity={0.7}
+  >
+    <View style={styles.locationSuggestionContent}>
+      <View style={styles.locationSuggestionIcon}>
+        <Ionicons name="location" size={20} color={Colors.primary} />
+      </View>
+      <View style={styles.locationSuggestionTextContainer}>
+        <Text style={styles.locationSuggestionName}>{suggestion.name}</Text>
+        <Text style={styles.locationSuggestionAddress}>{suggestion.address}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.4)" />
+    </View>
+  </TouchableOpacity>
+));
 
 export default CreateEventScreen; 

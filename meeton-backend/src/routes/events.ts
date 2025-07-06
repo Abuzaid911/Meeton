@@ -36,16 +36,9 @@ router.get('/',
  * POST /api/events/:id/photos
  */
 router.post('/:id/photos',
-  (req, res, next) => {
-    console.log('📸 POST /:id/photos route hit!', { params: req.params, body: req.body });
-    next();
-  },
   authenticate,
   upload.single('photo'),
-  (req, res) => {
-    console.log('📸 Photo upload handler working!');
-    res.json({ success: true, message: 'Photo upload working', params: req.params });
-  }
+  eventController.uploadEventPhoto
 );
 
 /**
@@ -53,15 +46,8 @@ router.post('/:id/photos',
  * GET /api/events/:id/photos
  */
 router.get('/:id/photos',
-  (req, res, next) => {
-    console.log('📷 GET /:id/photos route hit!', { params: req.params });
-    next();
-  },
   apiLimiter, 
-  (req, res) => {
-    console.log('📷 Get photos handler working!');
-    res.json({ success: true, message: 'Get photos working', data: [], params: req.params });
-  }
+  eventController.getEventPhotos
 );
 
 /**

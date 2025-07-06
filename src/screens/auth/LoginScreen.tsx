@@ -291,7 +291,7 @@ const LoginScreen: React.FC = () => {
                     />
                   </View>
                   <Text style={styles.googleButtonText}>
-                    {isGoogleLoading ? 'Loading...' : 'Sign in with Google'}
+                    {isGoogleLoading ? 'Loading...' : 'Continue with Google'}
                   </Text>
                 </View>
               </BlurView>

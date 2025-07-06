@@ -167,7 +167,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
       
       {/* Background Gradient */}
       <LinearGradient
-        colors={[Colors.primary, Colors.secondary]}
+        colors={['#000000', '#121212']}
         style={styles.backgroundGradient}
       />
 
@@ -181,18 +181,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
         >
           {/* Logo and Welcome */}
           <View style={styles.headerSection}>
-            {/* Glassmorphism Logo Container */}
-            <View style={styles.logoContainer}>
-              <BlurView intensity={40} style={styles.logoBlur}>
-                <View style={styles.logoGlassEffect}>
-                  <Image
-                    source={require('../../../assets/meetlogo.png')}
-                    style={styles.logo}
-                    resizeMode="contain"
-                  />
-                </View>
-              </BlurView>
-            </View>
             <Text style={styles.welcomeTitle}>Welcome to MeetOn!</Text>
             <Text style={styles.welcomeSubtitle}>
               Let's set up your profile so others can find and connect with you.
@@ -201,7 +189,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
 
           {/* Profile Setup Form */}
           <View style={styles.formSection}>
-            <BlurView intensity={60} style={styles.formContainer}>
+            <BlurView intensity={80} tint="dark" style={styles.formContainer}>
               <View style={styles.formContent}>
                 <Text style={styles.sectionTitle}>Complete Your Profile</Text>
 
@@ -214,9 +202,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
                       }} 
                       style={styles.profilePhoto}
                     />
-                    <View style={styles.photoOverlay}>
-                      <Ionicons name="camera" size={24} color={Colors.white} />
-                    </View>
                   </View>
                 </View>
 
@@ -273,9 +258,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
                 >
                   <LinearGradient
                     colors={(!formData.name.trim() || !formData.username.trim() || usernameAvailable === false || isLoading) 
-                      ? ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)'] 
-                      : [Colors.white, 'rgba(255,255,255,0.9)']}
-                    style={styles.continueButtonGradient}
+                      ? [Colors.darkGray, Colors.darkGray] 
+                      : [Colors.lightBlue, Colors.blue]}               style={styles.continueButtonGradient}
                   >
                     {isLoading ? (
                       <ActivityIndicator size="small" color={Colors.primary} />
@@ -289,9 +273,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
                         </Text>
                         <Ionicons 
                           name="arrow-forward" 
-                          size={20} 
-                          color={(!formData.name.trim() || !formData.username.trim() || usernameAvailable === false) ? 'rgba(255,255,255,0.5)' : Colors.primary} 
-                        />
+                          size={20}
+                          color={(!formData.name.trim() || !formData.username.trim() || usernameAvailable === false) ? Colors.black : Colors.black}                         />
                       </>
                     )}
                   </LinearGradient>
@@ -503,10 +486,10 @@ const styles = StyleSheet.create({
   continueButtonText: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
-    color: Colors.primary,
+    color: Colors.black,
   },
   continueButtonTextDisabled: {
-    color: 'rgba(255, 255, 255, 0.5)',
+    color: Colors.black,
   },
 });
 

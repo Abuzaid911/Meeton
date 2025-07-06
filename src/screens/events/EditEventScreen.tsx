@@ -47,7 +47,6 @@ interface EventForm {
     longitude: number;
   } | null;
   invitedFriends: string[];
-  maxGuests: string;
 }
 
 interface LocationSuggestion {
@@ -204,7 +203,6 @@ const EditEventScreen: React.FC = () => {
     locationDisplayName: '',
     coordinates: null,
     invitedFriends: [],
-    maxGuests: '',
   });
 
   useEffect(() => {
@@ -241,7 +239,7 @@ const EditEventScreen: React.FC = () => {
             longitude: eventData.lng
           } : null,
           invitedFriends: [],
-          maxGuests: eventData.capacity ? eventData.capacity.toString() : '',
+  
         });
         
         setLocationQuery(eventData.location || '');
@@ -343,7 +341,7 @@ const EditEventScreen: React.FC = () => {
         headerType: form.backgroundType === 'image' ? 'image' : 'color',
         headerColor: form.color,
         headerImageUrl: form.image || undefined,
-        capacity: form.maxGuests ? parseInt(form.maxGuests) : undefined,
+
         tags: form.type ? [form.type] : [],
       });
 
@@ -634,14 +632,7 @@ const EditEventScreen: React.FC = () => {
         </View>
       </View>
       
-      <InputField
-        label="Max Guests (Optional)"
-        value={form.maxGuests}
-        onChangeText={(text) => updateForm('maxGuests', text)}
-        placeholder="Unlimited"
-        icon="people"
-        numeric
-      />
+
     </View>
   );
 

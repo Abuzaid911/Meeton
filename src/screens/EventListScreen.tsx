@@ -28,10 +28,10 @@ const { width, height } = Dimensions.get('window');
 // Weather data mock (in real app, fetch from weather API)
 const getWeatherForEvent = (eventId: string) => {
   const weatherOptions = [
-    { icon: 'sunny', temp: '72°F', condition: 'sunny' },
-    { icon: 'partly-sunny', temp: '68°F', condition: 'partly-cloudy' },
-    { icon: 'cloudy', temp: '65°F', condition: 'cloudy' },
-    { icon: 'rainy', temp: '59°F', condition: 'rainy' },
+    { icon: 'sunny', temp: '36°C', condition: 'sunny' },
+    { icon: 'sunny', temp: '31°C', condition: 'sunny' },
+    { icon: 'sunny', temp: '34°C', condition: 'sunny' },
+    { icon: 'sunny', temp: '30°C', condition: 'sunny' },
   ];
   return weatherOptions[Math.floor(Math.random() * weatherOptions.length)];
 };
@@ -172,6 +172,8 @@ const EventListScreen: React.FC = () => {
     const attendeeCount = event.attendees?.filter(a => a.rsvp === RSVP.YES).length || 0;
     const isHosting = event.hostId === user?.id;
     const weather = getWeatherForEvent(event.id);
+    // Only show confirmed attendees (going + maybe), never "not going" users
+    const confirmedAttendees = event.attendees?.filter(a => a.rsvp === RSVP.YES || a.rsvp === RSVP.MAYBE) || [];
 
     return (
       <View style={styles.fullScreenCard}>
@@ -232,10 +234,10 @@ const EventListScreen: React.FC = () => {
                       </BlurView>
 
                       {/* Enhanced Attendee Avatars */}
-                      {event.attendees && event.attendees.length > 0 && (
+                      {confirmedAttendees.length > 0 && (
                         <View style={styles.attendeeRow}>
                           <View style={styles.attendeeAvatars}>
-                            {event.attendees.slice(0, 4).map((attendee, avatarIndex) => (
+                            {confirmedAttendees.slice(0, 4).map((attendee, avatarIndex) => (
                               <View
                                 key={attendee.id}
                                 style={[
@@ -253,13 +255,13 @@ const EventListScreen: React.FC = () => {
                                 <View style={styles.avatarGlow} />
                               </View>
                             ))}
-                            {attendeeCount > 4 && (
+                            {confirmedAttendees.length > 4 && (
                               <View style={[styles.attendeeAvatar, styles.moreAttendees]}>
-                                <Text style={styles.moreAttendeesText}>+{attendeeCount - 4}</Text>
+                                <Text style={styles.moreAttendeesText}>+{confirmedAttendees.length - 4}</Text>
                               </View>
                             )}
                           </View>
-                          <Text style={styles.attendeeCountText}>{attendeeCount} going</Text>
+                           <Text style={styles.attendeeCountText}>{attendeeCount} going</Text>
                         </View>
                       )}
                     </View>
@@ -315,10 +317,10 @@ const EventListScreen: React.FC = () => {
                       </BlurView>
 
                       {/* Enhanced Attendee Avatars */}
-                      {event.attendees && event.attendees.length > 0 && (
+                      {confirmedAttendees.length > 0 && (
                         <View style={styles.attendeeRow}>
                           <View style={styles.attendeeAvatars}>
-                            {event.attendees.slice(0, 4).map((attendee, avatarIndex) => (
+                            {confirmedAttendees.slice(0, 4).map((attendee, avatarIndex) => (
                               <View
                                 key={attendee.id}
                                 style={[
@@ -336,9 +338,9 @@ const EventListScreen: React.FC = () => {
                                 <View style={styles.avatarGlow} />
                               </View>
                             ))}
-                            {attendeeCount > 4 && (
+                            {confirmedAttendees.length > 4 && (
                               <View style={[styles.attendeeAvatar, styles.moreAttendees]}>
-                                <Text style={styles.moreAttendeesText}>+{attendeeCount - 4}</Text>
+                                <Text style={styles.moreAttendeesText}>+{confirmedAttendees.length - 4}</Text>
                               </View>
                             )}
                           </View>
@@ -492,14 +494,6 @@ const EventListScreen: React.FC = () => {
                 <Ionicons name="settings-outline" size={24} color={Colors.white} />
                 <Text style={styles.modalButtonText}>Settings</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalButton} onPress={() => {
-                setShowProfileModal(false);
-                // Add help functionality here
-                alert('Help & Support would open here');
-              }}>
-                <Ionicons name="help-circle-outline" size={24} color={Colors.white} />
-                <Text style={styles.modalButtonText}>Help & Support</Text>
-              </TouchableOpacity>
               <TouchableOpacity style={[styles.modalButton, styles.logoutButton]} onPress={handleLogoutPress}>
                 <Ionicons name="log-out-outline" size={24} color={Colors.systemRed} />
                 <Text style={[styles.modalButtonText, { color: Colors.systemRed }]}>Logout</Text>
@@ -567,7 +561,7 @@ const styles = StyleSheet.create({
   },
   appLogo: {
     width: 120,
-    height: 32,
+    height: 64,
   },
   profileButton: {
     width: 40,

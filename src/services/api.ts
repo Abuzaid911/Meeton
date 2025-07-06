@@ -837,16 +837,15 @@ export class APIService {
         type: 'image/jpeg',
       } as any);
       if (caption) formData.append('caption', caption);
-      const response = await fetch(`${API_BASE_URL}/events/${eventId}/photos`, {
+      
+      const response = await this.makeRequest<any>(`/events/${eventId}/photos`, {
         method: 'POST',
-        headers: {
-          'Authorization': this.accessToken ? `Bearer ${this.accessToken}` : '',
-          'Content-Type': 'multipart/form-data',
-        },
         body: formData,
+        requireAuth: true,
+        action: 'upload event photo',
       });
-      const data = await response.json();
-      return data.success ? data.data : null;
+      
+      return response.success ? response.data : null;
     } catch (error) {
       console.error('Failed to upload event photo:', error);
       return null;

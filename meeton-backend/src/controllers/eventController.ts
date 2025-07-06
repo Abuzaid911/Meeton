@@ -10,6 +10,7 @@ import {
 } from '../utils/errors';
 import { createEventSchema } from '../utils/validation';
 import { RSVP } from '@prisma/client';
+import { prisma } from '../config/database';
 
 /**
  * Event Controller - Controllers ONLY handle HTTP concerns
@@ -276,13 +277,34 @@ class EventController {
       if (!req.user) throw new AuthenticationError('Authentication required');
       const { id: eventId } = req.params;
       const { caption } = req.body;
-      const imageUrl = req.file?.path;
-      if (!imageUrl) throw new ValidationError('Image upload failed');
+      
+      if (!req.file) throw new ValidationError('Image upload failed');
+      
       // Only allow users who RSVP'd YES
       const isAttending = await eventService.isUserAttendingEvent(eventId, req.user.id);
       if (!isAttending) throw new AuthorizationError('Only going users can upload photos');
-      const photo = await eventService.addEventPhoto(eventId, req.user.id, imageUrl, caption);
-      sendSuccess(res, photo, 'Photo uploaded successfully', 201);
+      
+      // Create photo record with Cloudinary URL
+      const photo = await prisma.eventPhoto.create({
+        data: {
+          eventId,
+          userId: req.user.id,
+          imageUrl: req.file.path, // Cloudinary URL from multer-storage-cloudinary
+          caption: caption || null,
+          storageKey: req.file.filename // Cloudinary public ID
+        },
+        include: {
+          user: { select: { id: true, name: true, username: true, image: true } },
+        },
+      });
+      
+      sendSuccess(res, {
+        id: photo.id,
+        imageUrl: photo.imageUrl,
+        caption: photo.caption || undefined,
+        uploadedAt: photo.uploadedAt,
+        user: photo.user
+      }, 'Photo uploaded successfully', 201);
     } catch (error) {
       next(error);
     }

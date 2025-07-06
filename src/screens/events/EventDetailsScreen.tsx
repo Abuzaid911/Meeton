@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,7 @@ import {
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../constants';
 import { Event, User, RSVP } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
@@ -37,6 +37,7 @@ import { NearbyUsersComponent } from '../../components/location/NearbyUsersCompo
 import { LocationMapComponent } from '../../components/location/LocationMapComponent';
 import { LiveLocationService } from '../../services/liveLocationService';
 import { sharingService } from '../../services/sharingService';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 
@@ -129,12 +130,16 @@ const EventDetailsScreen: React.FC = () => {
   const [loadingFriendship, setLoadingFriendship] = useState(false);
   const [modalAnimation] = useState(new Animated.Value(0));
 
-  useEffect(() => {
-    loadEventDetails();
-  }, [eventId]);
+  // Load event details on mount and when screen comes back into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadEventDetails();
+    }, [eventId])
+  );
 
   const loadEventDetails = async () => {
     try {
+      setLoading(true);
       const foundEvent = await APIService.getEventById(eventId);
       if (foundEvent) {
         // Type assertion since formatDate handles both string and Date types
@@ -144,6 +149,9 @@ const EventDetailsScreen: React.FC = () => {
         if (userAttendee) {
           // Convert API string to RSVP enum
           setUserRSVP(userAttendee.rsvp as RSVP);
+        } else {
+          // Reset to NO if user is not in attendees list
+          setUserRSVP(RSVP.NO);
         }
       }
     } catch (error) {
@@ -177,6 +185,7 @@ const EventDetailsScreen: React.FC = () => {
     if (!pendingRSVP || !event) return;
     
     try {
+      // Send RSVP to backend
       await APIService.rsvpToEvent(eventId, pendingRSVP);
       
       // Immediately update local state for instant UI feedback
@@ -196,12 +205,13 @@ const EventDetailsScreen: React.FC = () => {
           updatedEvent.attendees[existingAttendeeIndex] = {
             ...updatedEvent.attendees[existingAttendeeIndex],
             rsvp: pendingRSVP,
+            responseTime: new Date(),
           };
         } else {
           // Add new attendee
           if (!updatedEvent.attendees) updatedEvent.attendees = [];
           updatedEvent.attendees.push({
-            id: `temp-${user.id}`, // Temporary ID until reload
+            id: `${user.id}-${Date.now()}`, // Unique ID
             userId: user.id,
             eventId: event.id,
             rsvp: pendingRSVP,
@@ -215,34 +225,19 @@ const EventDetailsScreen: React.FC = () => {
           });
         }
         
-        // Update the event state immediately
+        // Update the event state immediately for instant feedback
         setEvent(updatedEvent);
       }
       
       // Close modal and reset form
       closeRSVPModal();
       
-      // Reload event details to get updated data from server
-      // Use a longer delay to ensure server has processed the update
-      setTimeout(async () => {
-        try {
-          const refreshedEvent = await APIService.getEventById(eventId);
-          if (refreshedEvent) {
-            setEvent(refreshedEvent as unknown as Event);
-            // Ensure userRSVP stays consistent with the new RSVP
-            const userAttendee = refreshedEvent.attendees?.find((a: any) => a.userId === user?.id);
-            if (userAttendee) {
-              setUserRSVP(userAttendee.rsvp as RSVP);
-            } else {
-              // If user is not in attendees list but we just RSVP'd, keep the pendingRSVP
-              setUserRSVP(pendingRSVP);
-            }
-          }
-        } catch (error) {
-          console.error('Error refreshing event details:', error);
-          // Keep the local state if refresh fails
-        }
-      }, 2000);
+      // Success feedback
+      Alert.alert(
+        'RSVP Updated', 
+        `Your response "${pendingRSVP === RSVP.YES ? 'Going' : pendingRSVP === RSVP.MAYBE ? 'Maybe' : 'Not Going'}" has been saved!`,
+        [{ text: 'OK' }]
+      );
       
     } catch (error) {
       console.error('RSVP error:', error);
@@ -251,6 +246,8 @@ const EventDetailsScreen: React.FC = () => {
       const userAttendee = event.attendees?.find(a => a.userId === user?.id);
       if (userAttendee) {
         setUserRSVP(userAttendee.rsvp as RSVP);
+      } else {
+        setUserRSVP(RSVP.NO);
       }
     }
   };
@@ -284,9 +281,9 @@ const EventDetailsScreen: React.FC = () => {
       // Use iOS ActionSheet
       const options = isHosting 
         ? ['Edit Event', 'Delete Event', 'Share Event', 'Cancel']
-        : ['Share Event', 'Report Event', 'Cancel'];
+        : ['Share Event', 'Cancel'];
       
-      const destructiveButtonIndex = isHosting ? 1 : 1; // Delete Event or Report Event
+      const destructiveButtonIndex = isHosting ? 1 : -1; // Delete Event only
       const cancelButtonIndex = options.length - 1;
 
       ActionSheetIOS.showActionSheetWithOptions(
@@ -314,9 +311,7 @@ const EventDetailsScreen: React.FC = () => {
               case 0:
                 handleShareEvent();
                 break;
-              case 1:
-                handleReportEvent();
-                break;
+
             }
           }
         }
@@ -375,7 +370,7 @@ const EventDetailsScreen: React.FC = () => {
     const shareOptions = [
       { title: 'Share Link', action: 'link' },
       { title: 'Copy Link', action: 'copy' },
-      { title: 'Generate QR Code', action: 'qr' },
+
       { title: 'Create Invite Link', action: 'invite' },
       { title: 'Cancel', action: 'cancel' }
     ];
@@ -400,16 +395,7 @@ const EventDetailsScreen: React.FC = () => {
                 const copiedLink = await sharingService.copyShareLink(event.id);
                 Alert.alert('Success', 'Event link copied to clipboard!');
                 break;
-              case 'qr':
-                try {
-                  const qrCodeUrl = await sharingService.generateQRCode(event.id);
-                  Alert.alert('QR Code', 'QR code generated successfully!', [
-                    { text: 'OK' }
-                  ]);
-                } catch (error) {
-                  Alert.alert('Error', 'Failed to generate QR code. Please try again.');
-                }
-                break;
+
               case 'invite':
                 try {
                   const inviteLink = await sharingService.generateInviteLink(event.id, {
@@ -453,9 +439,7 @@ const EventDetailsScreen: React.FC = () => {
     }
   };
 
-  const handleReportEvent = () => {
-    Alert.alert('Report Event', 'Event reporting functionality will be implemented here.');
-  };
+
 
     const handleGuestAvatarPress = async (selectedUserData: User) => {
     setSelectedUser(selectedUserData);
@@ -629,8 +613,11 @@ const EventDetailsScreen: React.FC = () => {
   }
 
   const isHosting = event.hostId === user?.id;
+  // Only show guests who are going or maybe going, never show "not going" users
   const attendingGuests = event.attendees?.filter(a => a.rsvp === RSVP.YES) || [];
   const maybeGuests = event.attendees?.filter(a => a.rsvp === RSVP.MAYBE) || [];
+  // Combined list of confirmed attendees (going + maybe) for display purposes
+  const confirmedAttendees = [...attendingGuests, ...maybeGuests];
   const weather = getWeatherForEvent(event.id);
   const countdown = getCountdown(event.date);
 
@@ -1644,16 +1631,7 @@ const EventDetailsScreen: React.FC = () => {
                       <Text style={styles.optionsModalButtonText}>Share Event</Text>
                     </TouchableOpacity>
                     
-                    <TouchableOpacity
-                      style={[styles.optionsModalButton, styles.optionsModalButtonDestructive]}
-                      onPress={() => {
-                        setShowOptionsModal(false);
-                        handleReportEvent();
-                      }}
-                    >
-                      <Ionicons name="flag-outline" size={20} color={Colors.systemRed} />
-                      <Text style={[styles.optionsModalButtonText, { color: Colors.systemRed }]}>Report Event</Text>
-                    </TouchableOpacity>
+
                   </>
                 )}
                 

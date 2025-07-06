@@ -595,32 +595,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       ],
     },
     {
-      title: 'Account',
-      items: [
-        {
-          icon: 'person-outline',
-          label: 'Edit Profile',
-          subtitle: 'Update your personal information',
-          onPress: () => navigation.navigate('EditProfile'),
-          showChevron: true,
-        },
-        {
-          icon: 'notifications-outline',
-          label: 'Notifications',
-          subtitle: 'Push notifications and alerts',
-          onPress: () => setNotificationsEnabled(!notificationsEnabled),
-          showChevron: false,
-        },
-        {
-          icon: 'megaphone-outline',
-          label: 'Test Notification',
-          subtitle: 'Send a test notification to verify setup',
-          onPress: handleTestNotification,
-          showChevron: true,
-        },
-      ],
-    },
-    {
       title: 'Account Actions',
       items: [
         {
@@ -767,17 +741,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                     }} 
                     style={styles.avatar} 
                   />
-                  <View style={styles.avatarRing} />
-                  {isOwnProfile && (
-                    <TouchableOpacity 
-                      style={styles.editAvatarButton}
-                      onPress={() => Alert.alert('Coming Soon', 'Photo editing will be available soon.')}
-                    >
-                      <BlurView intensity={100} style={styles.editAvatarBlur}>
-                        <Ionicons name="camera" size={16} color={Colors.white} />
-                      </BlurView>
-                    </TouchableOpacity>
-                  )}
                 </View>
                 <Text style={styles.userName}>{profileUser?.name || 'User'}</Text>
                 <Text style={styles.userEmail}>{profileUser?.email}</Text>
@@ -891,25 +854,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         {/* User Info Section - Enhanced for other users */}
         {!isOwnProfile && profileUser && (
           <>
-            {/* Interests Section */}
-            <View style={styles.userInfoSection}>
-              <BlurView intensity={60} style={styles.userInfoBlur}>
-                <View style={styles.userInfoContent}>
-                  <Text style={styles.sectionTitle}>Interests</Text>
-                  <View style={styles.interestTags}>
-                    {profileUser.interests && profileUser.interests.length > 0 ? (
-                      profileUser.interests.map((interest, index) => (
-                        <View key={index} style={styles.interestTag}>
-                          <Text style={styles.interestTagText}>{interest}</Text>
-                        </View>
-                      ))
-                    ) : (
-                      <Text style={styles.noDataText}>No interests shared</Text>
-                    )}
-                  </View>
-                </View>
-              </BlurView>
-            </View>
+
 
             {/* Recent Activity Section */}
             <View style={styles.userInfoSection}>
