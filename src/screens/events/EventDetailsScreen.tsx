@@ -30,6 +30,7 @@ import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '..
 import { Event, User, RSVP } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation } from '../../contexts/LocationContext';
+import { useRSVP } from '../../contexts/RSVPContext';
 import APIService from '../../services/api';
 import EventPhotosGallery from '../../components/events/EventPhotosGallery';
 import { LocationSharingComponent } from '../../components/location/LocationSharingComponent';
@@ -108,11 +109,11 @@ const EventDetailsScreen: React.FC = () => {
   const route = useRoute();
   const { eventId } = route.params as RouteParams;
   const { user } = useAuth();
+  const { userRSVP: getUserRSVP, updateRSVP, setEventRSVP } = useRSVP();
   
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [showGuestTooltip, setShowGuestTooltip] = useState(false);
-  const [userRSVP, setUserRSVP] = useState<RSVP>(RSVP.NO);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showRSVPModal, setShowRSVPModal] = useState(false);
   const [pendingRSVP, setPendingRSVP] = useState<RSVP | null>(null);
@@ -133,31 +134,62 @@ const EventDetailsScreen: React.FC = () => {
   // Load event details on mount and when screen comes back into focus
   useFocusEffect(
     useCallback(() => {
+      console.log('🎯 [RSVP DEBUG] useFocusEffect triggered for eventId:', eventId);
+      console.log('🎯 [RSVP DEBUG] Screen came into focus, current context RSVP:', getUserRSVP(eventId));
+      console.log('🎯 [RSVP DEBUG] Current event has:', event?.attendees?.length || 0, 'attendees');
+      
       loadEventDetails();
     }, [eventId])
   );
 
   const loadEventDetails = async () => {
+    const loadStartTime = Date.now();
+    console.log('🔄 [RSVP DEBUG] loadEventDetails started for eventId:', eventId);
+    console.log('🔄 [RSVP DEBUG] Current context RSVP before load:', getUserRSVP(eventId));
+    
     try {
       setLoading(true);
       const foundEvent = await APIService.getEventById(eventId);
+      
       if (foundEvent) {
+        console.log('📡 [RSVP DEBUG] API returned event with attendees:', foundEvent.attendees?.length || 0);
+        
         // Type assertion since formatDate handles both string and Date types
         setEvent(foundEvent as unknown as Event);
-        // Find current user's RSVP status
-        const userAttendee = foundEvent.attendees?.find((a: any) => a.userId === user?.id);
+        
+        // Find current user's RSVP status and update context
+        const userAttendee = foundEvent.attendees?.find((a: any) => a.user.id === user?.id);
+        console.log('👤 [RSVP DEBUG] Found user attendee:', userAttendee ? { id: userAttendee.id, rsvp: userAttendee.rsvp } : 'Not found');
+        
+        const previousContextRSVP = getUserRSVP(eventId);
+        const serverRSVP = userAttendee ? userAttendee.rsvp as RSVP : RSVP.NO;
+        
+        console.log('🔄 [RSVP DEBUG] RSVP comparison - Context:', previousContextRSVP, 'Server:', serverRSVP);
+        
+        if (previousContextRSVP !== serverRSVP) {
+          console.warn('⚠️ [RSVP DEBUG] RSVP MISMATCH DETECTED! Context had:', previousContextRSVP, 'but server has:', serverRSVP);
+        }
+        
         if (userAttendee) {
-          // Convert API string to RSVP enum
-          setUserRSVP(userAttendee.rsvp as RSVP);
+          // Convert API string to RSVP enum and update context
+          setEventRSVP(eventId, userAttendee.rsvp as RSVP);
+          console.log('✅ [RSVP DEBUG] Updated context RSVP to:', userAttendee.rsvp);
         } else {
           // Reset to NO if user is not in attendees list
-          setUserRSVP(RSVP.NO);
+          setEventRSVP(eventId, RSVP.NO);
+          console.log('❌ [RSVP DEBUG] User not in attendees, reset context RSVP to NO');
         }
+        
+        console.log('🔄 [RSVP DEBUG] Final context RSVP after load:', getUserRSVP(eventId));
+      } else {
+        console.error('❌ [RSVP DEBUG] No event found from API');
       }
     } catch (error) {
-      console.error('Error loading event details:', error);
+      console.error('❌ [RSVP DEBUG] Error loading event details:', error);
     } finally {
       setLoading(false);
+      const loadEndTime = Date.now();
+      console.log('⏱️ [RSVP DEBUG] loadEventDetails completed in:', loadEndTime - loadStartTime, 'ms');
     }
   };
 
@@ -184,12 +216,36 @@ const EventDetailsScreen: React.FC = () => {
   const confirmRSVP = async () => {
     if (!pendingRSVP || !event) return;
     
+    const rsvpStartTime = Date.now();
+    console.log('🚀 [RSVP DEBUG] confirmRSVP started - Changing from:', getUserRSVP(eventId), 'to:', pendingRSVP);
+    console.log('🚀 [RSVP DEBUG] Current event has', event.attendees?.length || 0, 'attendees');
+    
     try {
       // Send RSVP to backend
-      await APIService.rsvpToEvent(eventId, pendingRSVP);
+      console.log('📡 [RSVP DEBUG] Sending API request...');
+      const result = await APIService.rsvpToEvent(eventId, pendingRSVP);
+      console.log('📡 [RSVP DEBUG] API response success:', result.success, 'hasEvent:', !!result.event);
       
-      // Immediately update local state for instant UI feedback
-      setUserRSVP(pendingRSVP);
+      if (result.success) {
+        const contextBeforeUpdate = getUserRSVP(eventId);
+        
+        // Update RSVP via context for instant UI feedback across all screens
+        setEventRSVP(eventId, pendingRSVP);
+        console.log('✅ [RSVP DEBUG] Context updated from:', contextBeforeUpdate, 'to:', pendingRSVP);
+        
+        // Update event data with the latest from server
+        if (result.event) {
+          const serverUserAttendee = result.event.attendees?.find((a: any) => a.user.id === user?.id);
+          console.log('📡 [RSVP DEBUG] Server returned user attendee:', serverUserAttendee ? { id: serverUserAttendee.id, rsvp: serverUserAttendee.rsvp } : 'Not found');
+          
+          setEvent(result.event as unknown as Event);
+          console.log('✅ [RSVP DEBUG] Event state updated with server data');
+        }
+        
+        console.log('🔄 [RSVP DEBUG] Final context RSVP after API success:', getUserRSVP(eventId));
+      } else {
+        throw new Error('Failed to update RSVP');
+      }
       
       // Update the event data immediately to reflect new RSVP
       if (event && user) {
@@ -197,7 +253,7 @@ const EventDetailsScreen: React.FC = () => {
         
         // Find existing attendee or create new one
         const existingAttendeeIndex = updatedEvent.attendees?.findIndex(
-          a => a.userId === user.id
+          a => a.user.id === user.id
         ) ?? -1;
         
         if (existingAttendeeIndex >= 0 && updatedEvent.attendees) {
@@ -240,15 +296,21 @@ const EventDetailsScreen: React.FC = () => {
       );
       
     } catch (error) {
-      console.error('RSVP error:', error);
+      console.error('❌ [RSVP DEBUG] RSVP API failed:', error);
+      console.log('🔄 [RSVP DEBUG] Rolling back context RSVP from:', getUserRSVP(eventId));
+      
       Alert.alert('Error', 'Failed to update RSVP. Please try again.');
-      // Reset userRSVP to previous state if API call failed
-      const userAttendee = event.attendees?.find(a => a.userId === user?.id);
-      if (userAttendee) {
-        setUserRSVP(userAttendee.rsvp as RSVP);
-      } else {
-        setUserRSVP(RSVP.NO);
-      }
+      
+      // Reset RSVP to previous state if API call failed
+      const userAttendee = event.attendees?.find(a => a.user.id === user?.id);
+      const rollbackRSVP = userAttendee ? userAttendee.rsvp as RSVP : RSVP.NO;
+      
+      console.log('🔄 [RSVP DEBUG] Rolling back to:', rollbackRSVP);
+      setEventRSVP(eventId, rollbackRSVP);
+      console.log('✅ [RSVP DEBUG] Context rolled back to:', getUserRSVP(eventId));
+    } finally {
+      const rsvpEndTime = Date.now();
+      console.log('⏱️ [RSVP DEBUG] confirmRSVP completed in:', rsvpEndTime - rsvpStartTime, 'ms');
     }
   };
 
@@ -620,6 +682,7 @@ const EventDetailsScreen: React.FC = () => {
   const confirmedAttendees = [...attendingGuests, ...maybeGuests];
   const weather = getWeatherForEvent(event.id);
   const countdown = getCountdown(event.date);
+  const currentUserRSVP = getUserRSVP(eventId);
 
   return (
     <View style={styles.container}>
@@ -678,7 +741,7 @@ const EventDetailsScreen: React.FC = () => {
                     style={[
                       styles.rsvpButton,
                       styles.rsvpButtonGoing,
-                      userRSVP === RSVP.YES && styles.rsvpButtonActive,
+                      currentUserRSVP === RSVP.YES && styles.rsvpButtonActive,
                     ]}
                     onPress={() => handleRSVP(RSVP.YES)}
                     activeOpacity={0.8}
@@ -686,20 +749,20 @@ const EventDetailsScreen: React.FC = () => {
                     <BlurView intensity={80} tint="light" style={styles.rsvpButtonBlur}>
                       <Animated.View style={[
                         styles.rsvpButtonContent, 
-                        userRSVP === RSVP.YES && styles.rsvpButtonContentActive
+                        currentUserRSVP === RSVP.YES && styles.rsvpButtonContentActive
                       ]}>
                         <Ionicons 
                           name="checkmark" 
                           size={20} 
-                          color={userRSVP === RSVP.YES ? Colors.white : Colors.systemGreen} 
+                          color={currentUserRSVP === RSVP.YES ? Colors.white : Colors.systemGreen} 
                         />
                         <Text style={[
                           styles.rsvpButtonText,
-                          userRSVP === RSVP.YES && styles.rsvpButtonTextActive,
+                          currentUserRSVP === RSVP.YES && styles.rsvpButtonTextActive,
                         ]}>
                           Going
                         </Text>
-                        {userRSVP === RSVP.YES && (
+                        {currentUserRSVP === RSVP.YES && (
                           <View style={styles.rsvpActiveIndicator}>
                             <Ionicons name="star" size={12} color={Colors.white} />
                           </View>
@@ -713,7 +776,7 @@ const EventDetailsScreen: React.FC = () => {
                   <TouchableOpacity
                     style={[
                       styles.rsvpButton,
-                      userRSVP === RSVP.NO && styles.rsvpButtonActiveNo,
+                      currentUserRSVP === RSVP.NO && styles.rsvpButtonActiveNo,
                     ]}
                     onPress={() => handleRSVP(RSVP.NO)}
                     activeOpacity={0.8}
@@ -723,15 +786,15 @@ const EventDetailsScreen: React.FC = () => {
                         <Ionicons 
                           name="close" 
                           size={20} 
-                          color={userRSVP === RSVP.NO ? Colors.white : Colors.systemRed} 
+                          color={currentUserRSVP === RSVP.NO ? Colors.white : Colors.systemRed} 
                         />
                         <Text style={[
                           styles.rsvpButtonText,
-                          userRSVP === RSVP.NO && styles.rsvpButtonTextActive,
+                          currentUserRSVP === RSVP.NO && styles.rsvpButtonTextActive,
                         ]}>
                           Not Going
                         </Text>
-                        {userRSVP === RSVP.NO && (
+                        {currentUserRSVP === RSVP.NO && (
                           <View style={styles.rsvpActiveIndicator}>
                             <Ionicons name="star" size={12} color={Colors.white} />
                           </View>
@@ -745,7 +808,7 @@ const EventDetailsScreen: React.FC = () => {
                   <TouchableOpacity
                     style={[
                       styles.rsvpButton,
-                      userRSVP === RSVP.MAYBE && styles.rsvpButtonActiveMaybe,
+                      currentUserRSVP === RSVP.MAYBE && styles.rsvpButtonActiveMaybe,
                     ]}
                     onPress={() => handleRSVP(RSVP.MAYBE)}
                     activeOpacity={0.8}
@@ -755,15 +818,15 @@ const EventDetailsScreen: React.FC = () => {
                         <Ionicons 
                           name="help" 
                           size={20} 
-                          color={userRSVP === RSVP.MAYBE ? Colors.white : Colors.systemYellow} 
+                          color={currentUserRSVP === RSVP.MAYBE ? Colors.white : Colors.systemYellow} 
                         />
                         <Text style={[
                           styles.rsvpButtonText,
-                          userRSVP === RSVP.MAYBE && styles.rsvpButtonTextActive,
+                          currentUserRSVP === RSVP.MAYBE && styles.rsvpButtonTextActive,
                         ]}>
                           Maybe
                         </Text>
-                        {userRSVP === RSVP.MAYBE && (
+                        {currentUserRSVP === RSVP.MAYBE && (
                           <View style={styles.rsvpActiveIndicator}>
                             <Ionicons name="star" size={12} color={Colors.white} />
                           </View>
@@ -775,18 +838,18 @@ const EventDetailsScreen: React.FC = () => {
               </View>
               
               {/* RSVP Status Message */}
-              {userRSVP && (
+              {currentUserRSVP && (
                 <Animated.View style={styles.rsvpStatusMessage}>
                   <BlurView intensity={60} tint="dark" style={styles.rsvpStatusBlur}>
                     <View style={styles.rsvpStatusContent}>
                       <Ionicons 
-                        name={getRSVPIcon(userRSVP) as any} 
+                        name={getRSVPIcon(currentUserRSVP) as any} 
                         size={16} 
-                        color={getRSVPColor(userRSVP)} 
+                        color={getRSVPColor(currentUserRSVP)} 
                       />
                       <Text style={styles.rsvpStatusText}>
-                        {userRSVP === RSVP.YES ? 'You\'re going! See you there 🎉' : 
-                         userRSVP === RSVP.MAYBE ? 'Let us know when you decide!' : 
+                        {currentUserRSVP === RSVP.YES ? 'You\'re going! See you there 🎉' : 
+                         currentUserRSVP === RSVP.MAYBE ? 'Let us know when you decide!' : 
                          'Thanks for letting us know'}
                       </Text>
                     </View>
@@ -1013,7 +1076,7 @@ const EventDetailsScreen: React.FC = () => {
                     style={[
                       styles.rsvpButton,
                       styles.rsvpButtonGoing,
-                      userRSVP === RSVP.YES && styles.rsvpButtonActive,
+                      currentUserRSVP === RSVP.YES && styles.rsvpButtonActive,
                     ]}
                     onPress={() => handleRSVP(RSVP.YES)}
                     activeOpacity={0.8}
@@ -1021,20 +1084,20 @@ const EventDetailsScreen: React.FC = () => {
                     <BlurView intensity={80} tint="light" style={styles.rsvpButtonBlur}>
                       <Animated.View style={[
                         styles.rsvpButtonContent, 
-                        userRSVP === RSVP.YES && styles.rsvpButtonContentActive
+                        currentUserRSVP === RSVP.YES && styles.rsvpButtonContentActive
                       ]}>
                         <Ionicons 
                           name="checkmark" 
                           size={20} 
-                          color={userRSVP === RSVP.YES ? Colors.white : Colors.systemGreen} 
+                          color={currentUserRSVP === RSVP.YES ? Colors.white : Colors.systemGreen} 
                         />
                         <Text style={[
                           styles.rsvpButtonText,
-                          userRSVP === RSVP.YES && styles.rsvpButtonTextActive,
+                          currentUserRSVP === RSVP.YES && styles.rsvpButtonTextActive,
                         ]}>
                           Going
                         </Text>
-                        {userRSVP === RSVP.YES && (
+                        {currentUserRSVP === RSVP.YES && (
                           <View style={styles.rsvpActiveIndicator}>
                             <Ionicons name="star" size={12} color={Colors.white} />
                           </View>
@@ -1048,7 +1111,7 @@ const EventDetailsScreen: React.FC = () => {
                   <TouchableOpacity
                     style={[
                       styles.rsvpButton,
-                      userRSVP === RSVP.NO && styles.rsvpButtonActiveNo,
+                      currentUserRSVP === RSVP.NO && styles.rsvpButtonActiveNo,
                     ]}
                     onPress={() => handleRSVP(RSVP.NO)}
                     activeOpacity={0.8}
@@ -1058,15 +1121,15 @@ const EventDetailsScreen: React.FC = () => {
                         <Ionicons 
                           name="close" 
                           size={20} 
-                          color={userRSVP === RSVP.NO ? Colors.white : Colors.systemRed} 
+                          color={currentUserRSVP === RSVP.NO ? Colors.white : Colors.systemRed} 
                         />
                         <Text style={[
                           styles.rsvpButtonText,
-                          userRSVP === RSVP.NO && styles.rsvpButtonTextActive,
+                          currentUserRSVP === RSVP.NO && styles.rsvpButtonTextActive,
                         ]}>
                           Not Going
                         </Text>
-                        {userRSVP === RSVP.NO && (
+                        {currentUserRSVP === RSVP.NO && (
                           <View style={styles.rsvpActiveIndicator}>
                             <Ionicons name="star" size={12} color={Colors.white} />
                           </View>
@@ -1080,7 +1143,7 @@ const EventDetailsScreen: React.FC = () => {
                   <TouchableOpacity
                     style={[
                       styles.rsvpButton,
-                      userRSVP === RSVP.MAYBE && styles.rsvpButtonActiveMaybe,
+                      currentUserRSVP === RSVP.MAYBE && styles.rsvpButtonActiveMaybe,
                     ]}
                     onPress={() => handleRSVP(RSVP.MAYBE)}
                     activeOpacity={0.8}
@@ -1090,15 +1153,15 @@ const EventDetailsScreen: React.FC = () => {
                         <Ionicons 
                           name="help" 
                           size={20} 
-                          color={userRSVP === RSVP.MAYBE ? Colors.white : Colors.systemYellow} 
+                          color={currentUserRSVP === RSVP.MAYBE ? Colors.white : Colors.systemYellow} 
                         />
                         <Text style={[
                           styles.rsvpButtonText,
-                          userRSVP === RSVP.MAYBE && styles.rsvpButtonTextActive,
+                          currentUserRSVP === RSVP.MAYBE && styles.rsvpButtonTextActive,
                         ]}>
                           Maybe
                         </Text>
-                        {userRSVP === RSVP.MAYBE && (
+                        {currentUserRSVP === RSVP.MAYBE && (
                           <View style={styles.rsvpActiveIndicator}>
                             <Ionicons name="star" size={12} color={Colors.white} />
                           </View>
@@ -1110,18 +1173,18 @@ const EventDetailsScreen: React.FC = () => {
               </View>
               
               {/* RSVP Status Message */}
-              {userRSVP && (
+              {currentUserRSVP && (
                 <Animated.View style={styles.rsvpStatusMessage}>
                   <BlurView intensity={60} tint="dark" style={styles.rsvpStatusBlur}>
                     <View style={styles.rsvpStatusContent}>
                       <Ionicons 
-                        name={getRSVPIcon(userRSVP) as any} 
+                        name={getRSVPIcon(currentUserRSVP) as any} 
                         size={16} 
-                        color={getRSVPColor(userRSVP)} 
+                        color={getRSVPColor(currentUserRSVP)} 
                       />
                       <Text style={styles.rsvpStatusText}>
-                        {userRSVP === RSVP.YES ? 'You\'re going! See you there 🎉' : 
-                         userRSVP === RSVP.MAYBE ? 'Let us know when you decide!' : 
+                        {currentUserRSVP === RSVP.YES ? 'You\'re going! See you there 🎉' : 
+                         currentUserRSVP === RSVP.MAYBE ? 'Let us know when you decide!' : 
                          'Thanks for letting us know'}
                       </Text>
                     </View>

@@ -5,6 +5,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import * as Linking from 'expo-linking';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LocationProvider } from './src/contexts/LocationContext';
+import { RSVPProvider } from './src/contexts/RSVPContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { notificationService } from './src/services/notificationService';
 
@@ -49,11 +50,13 @@ function AppWithLocation() {
   return (
     <>
       {user ? (
-        <LocationProvider currentUser={user}>
-          <BottomSheetModalProvider>
-            <AppNavigator />
-          </BottomSheetModalProvider>
-        </LocationProvider>
+        <RSVPProvider>
+          <LocationProvider currentUser={user}>
+            <BottomSheetModalProvider>
+              <AppNavigator />
+            </BottomSheetModalProvider>
+          </LocationProvider>
+        </RSVPProvider>
       ) : (
         <BottomSheetModalProvider>
           <AppNavigator />

@@ -21,6 +21,7 @@ import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/nativ
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../constants';
 import { Event, User, RSVP } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useRSVP } from '../contexts/RSVPContext';
 import APIService from '../services/api';
 
 const { width, height } = Dimensions.get('window');
@@ -40,6 +41,7 @@ const EventListScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { user, signOut } = useAuth();
+  const { userRSVP } = useRSVP();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -92,7 +94,7 @@ const EventListScreen: React.FC = () => {
           case 'attending':
             fetchedEvents = fetchedEvents.filter(event => 
               event.attendees?.some(attendee => 
-                attendee.userId === user.id && attendee.rsvp === RSVP.YES
+                attendee.user.id === user.id && attendee.rsvp === RSVP.YES
               )
             );
             break;
@@ -100,7 +102,7 @@ const EventListScreen: React.FC = () => {
             fetchedEvents = fetchedEvents.filter(event => 
               event.hostId === user.id || 
               event.attendees?.some(attendee => 
-                attendee.userId === user.id && attendee.rsvp === RSVP.YES
+                attendee.user.id === user.id && attendee.rsvp === RSVP.YES
               )
             );
             break;

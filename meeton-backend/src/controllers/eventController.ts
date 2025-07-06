@@ -196,7 +196,9 @@ class EventController {
         });
       }
       
-      sendSuccess(res, attendee, 'RSVP updated successfully');
+      // Return updated event data with all attendees for frontend consistency
+      const updatedEvent = await eventService.getEventById(id, req.user.id);
+      sendSuccess(res, { attendee, event: updatedEvent }, 'RSVP updated successfully');
     } catch (error) {
       next(error);
     }

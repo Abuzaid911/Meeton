@@ -738,18 +738,24 @@ export class APIService {
   /**
    * RSVP to an event
    */
-  static async rsvpToEvent(eventId: string, rsvp: 'YES' | 'NO' | 'MAYBE' | 'PENDING'): Promise<boolean> {
+  static async rsvpToEvent(eventId: string, rsvp: 'YES' | 'NO' | 'MAYBE' | 'PENDING'): Promise<{ success: boolean; event?: Event }> {
     try {
-      const response = await this.makeRequest(`/events/${eventId}/rsvp`, {
+      const response = await this.makeRequest<{ attendee: any; event: Event }>(`/events/${eventId}/rsvp`, {
         method: 'POST',
         body: { rsvp },
         requireAuth: true,
       });
 
-      return response.success;
+      if (response.success && response.data) {
+        return { 
+          success: true, 
+          event: response.data.event as Event
+        };
+      }
+      return { success: false };
     } catch (error) {
       console.error('Failed to RSVP to event:', error);
-      return false;
+      return { success: false };
     }
   }
 
