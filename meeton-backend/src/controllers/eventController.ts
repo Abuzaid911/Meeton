@@ -182,12 +182,15 @@ class EventController {
       const { id } = req.params;
       const { rsvp } = req.body;
       
+      console.log('🚀 [BACKEND RSVP] RSVP request received:', { eventId: id, userId: req.user.id, rsvp });
+      
       // Validate RSVP value
       if (!Object.values(RSVP).includes(rsvp)) {
         throw new ValidationError('Invalid RSVP value. Must be YES, NO, MAYBE, or PENDING');
       }
       
       const attendee = await eventService.addAttendee(id, req.user.id, rsvp);
+      console.log('✅ [BACKEND RSVP] Attendee created/updated:', { attendeeId: attendee.id, rsvp: attendee.rsvp });
 
       // Track RSVP analytics (async, don't wait for completion)
       if (rsvp !== 'PENDING') {
@@ -197,9 +200,16 @@ class EventController {
       }
       
       // Return updated event data with all attendees for frontend consistency
+      console.log('📡 [BACKEND RSVP] Fetching updated event data...');
       const updatedEvent = await eventService.getEventById(id, req.user.id);
+      console.log('📡 [BACKEND RSVP] Updated event has', (updatedEvent as any)?.attendees?.length || 0, 'attendees');
+      
+      const userAttendeeInUpdated = (updatedEvent as any)?.attendees?.find((a: any) => a.user.id === req.user!.id);
+      console.log('👤 [BACKEND RSVP] User in updated event:', userAttendeeInUpdated ? { id: userAttendeeInUpdated.id, rsvp: userAttendeeInUpdated.rsvp } : 'Not found');
+      
       sendSuccess(res, { attendee, event: updatedEvent }, 'RSVP updated successfully');
     } catch (error) {
+      console.error('❌ [BACKEND RSVP] Error:', error);
       next(error);
     }
   }

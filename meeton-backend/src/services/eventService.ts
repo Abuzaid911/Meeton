@@ -202,9 +202,13 @@ class EventService {
    * Get event by ID with full details
    */
   async getEventById(eventId: string, userId?: string): Promise<Event | null> {
+    console.log('🔍 [BACKEND EVENT] getEventById called for:', eventId, 'by user:', userId);
+    
     // Try to get from cache first
     const cachedEvent = await cacheService.getCachedEvent(eventId);
     if (cachedEvent) {
+      console.log('💾 [BACKEND EVENT] Found cached event with', (cachedEvent as any)?.attendees?.length || 0, 'attendees');
+      
       // Check privacy permissions
       if (userId && !this.canUserViewEvent(cachedEvent, userId)) {
         throw new AuthorizationError('You do not have permission to view this event');
@@ -225,6 +229,7 @@ class EventService {
     }
 
     // If not in cache, fetch from database
+    console.log('🗄️ [BACKEND EVENT] No cache found, fetching from database...');
     const event = await prisma.event.findUnique({
       where: { id: eventId },
       include: {
@@ -287,8 +292,11 @@ class EventService {
     });
 
     if (!event) {
+      console.log('❌ [BACKEND EVENT] Event not found in database');
       return null;
     }
+    
+    console.log('✅ [BACKEND EVENT] Database returned event with', event.attendees?.length || 0, 'attendees');
 
     // Check privacy permissions
     if (userId && !this.canUserViewEvent(event, userId)) {
@@ -652,6 +660,10 @@ class EventService {
         },
       },
     });
+
+    // Invalidate cache to ensure fresh data on next fetch
+    await cacheService.invalidateEventCache(eventId);
+    console.log('🔄 [BACKEND RSVP] Cache invalidated for event:', eventId);
 
     return attendee;
   }
