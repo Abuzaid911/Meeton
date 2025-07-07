@@ -1173,8 +1173,6 @@ export class APIService {
     }
   }
 
-
-
   /**
    * Get friendship status between current user and another user
    */
@@ -1736,6 +1734,79 @@ export class APIService {
         success: false,
         error: networkError,
       };
+    }
+  }
+
+  /**
+   * Check upload permissions for event photos
+   */
+  static async checkEventUploadPermissions(eventId: string): Promise<{
+    canUpload: boolean;
+    reason?: string;
+    rsvpStatus?: string;
+  } | null> {
+    try {
+      const response = await this.makeRequest<{
+        canUpload: boolean;
+        reason?: string;
+        rsvpStatus?: string;
+      }>(`/images/event/${eventId}/upload-permissions`, {
+        method: 'GET',
+        requireAuth: true,
+        action: 'check upload permissions',
+      });
+      
+      return response.success ? response.data : null;
+    } catch (error) {
+      console.error('Failed to check upload permissions:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Upload multiple photos to an event (batch upload)
+   */
+  static async uploadMultipleEventPhotos(
+    eventId: string, 
+    imageUris: string[], 
+    captions?: string[]
+  ): Promise<{
+    photos: any[];
+    uploadedCount: number;
+    totalAttempted: number;
+  } | null> {
+    try {
+      const formData = new FormData();
+      
+      // Add all images
+      imageUris.forEach((uri, index) => {
+        formData.append('images', {
+          uri,
+          name: `photo_${index}.jpg`,
+          type: 'image/jpeg',
+        } as any);
+      });
+      
+      // Add captions if provided
+      if (captions) {
+        formData.append('captions', JSON.stringify(captions));
+      }
+      
+      const response = await this.makeRequest<{
+        photos: any[];
+        uploadedCount: number;
+        totalAttempted: number;
+      }>(`/images/event/${eventId}/photos/batch`, {
+        method: 'POST',
+        body: formData,
+        requireAuth: true,
+        action: 'upload multiple photos',
+      });
+      
+      return response.success ? response.data : null;
+    } catch (error) {
+      console.error('Failed to upload multiple photos:', error);
+      return null;
     }
   }
 }

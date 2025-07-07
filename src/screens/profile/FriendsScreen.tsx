@@ -282,7 +282,9 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
     return (
       <View style={styles.contentContainer}>
         {data.map((item: any, index: number) => {
-          const user = activeTab === 'sent' ? item.receiver : (activeTab === 'requests' ? item.sender : item);
+          const user = activeTab === 'sent' ? item.receiver : 
+                      activeTab === 'requests' ? item.sender : 
+                      item;
           const requestId = (activeTab === 'requests' || activeTab === 'sent') ? item.id : undefined;
           
           return (

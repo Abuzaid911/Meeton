@@ -38,6 +38,8 @@ class ImageController {
     this.getEventPhotos = this.getEventPhotos.bind(this);
     this.generateImageVariations = this.generateImageVariations.bind(this);
     this.cleanupOrphanedImages = this.cleanupOrphanedImages.bind(this);
+    this.uploadMultipleEventPhotos = this.uploadMultipleEventPhotos.bind(this);
+    this.checkEventUploadPermissions = this.checkEventUploadPermissions.bind(this);
   }
 
   /**
@@ -247,6 +249,84 @@ class ImageController {
       const result = await imageService.cleanupOrphanedImages();
 
       sendSuccess(res, result, 'Image cleanup completed successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Upload multiple event photos to album (batch upload)
+   * POST /api/images/event/:eventId/photos/batch
+   */
+  async uploadMultipleEventPhotos(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new AuthenticationError('Authentication required');
+      }
+
+      if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+        throw new ValidationError('No image files provided');
+      }
+
+      const { eventId } = req.params;
+      if (!eventId) {
+        throw new ValidationError('Event ID is required');
+      }
+
+      // Extract captions from request body (should be an array or JSON string)
+      let captions: (string | undefined)[] = [];
+      if (req.body.captions) {
+        try {
+          captions = typeof req.body.captions === 'string' 
+            ? JSON.parse(req.body.captions) 
+            : req.body.captions;
+        } catch {
+          captions = [];
+        }
+      }
+
+      // Ensure captions array matches files length
+      while (captions.length < req.files.length) {
+        captions.push(undefined);
+      }
+
+      const imageBuffers = req.files.map((file: any) => file.buffer);
+
+      const photos = await imageService.addMultipleEventPhotos(
+        eventId,
+        req.user.id,
+        imageBuffers,
+        captions
+      );
+
+      sendSuccess(res, {
+        photos,
+        uploadedCount: photos.length,
+        totalAttempted: req.files.length
+      }, `Successfully uploaded ${photos.length} photo(s)`, 201);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Check upload permissions for event
+   * GET /api/images/event/:eventId/upload-permissions
+   */
+  async checkEventUploadPermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new AuthenticationError('Authentication required');
+      }
+
+      const { eventId } = req.params;
+      if (!eventId) {
+        throw new ValidationError('Event ID is required');
+      }
+
+      const permissions = await imageService.canUserUploadToEvent(eventId, req.user.id);
+
+      sendSuccess(res, permissions, 'Upload permissions checked successfully');
     } catch (error) {
       next(error);
     }

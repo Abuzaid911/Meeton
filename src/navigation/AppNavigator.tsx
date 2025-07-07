@@ -26,6 +26,7 @@ import FriendsScreen from '../screens/profile/FriendsScreen';
 import UserProfileScreen from '../screens/profile/UserProfileScreen';
 import WelcomeScreen from '../screens/auth/WelcomeScreen';
 import LocationSettingsScreen from '../screens/settings/LocationSettingsScreen';
+import CalendarScreen from '../screens/CalendarScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -169,6 +170,42 @@ function CreateEventStack() {
   );
 }
 
+// Stack Navigator for Calendar
+function CalendarStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: Colors.backgroundSecondary,
+          shadowColor: 'transparent',
+          elevation: 0,
+        },
+        headerTitleStyle: {
+          color: Colors.text,
+          fontSize: 18,
+          fontWeight: '600',
+        },
+        headerTintColor: Colors.primary,
+      }}
+    >
+      <Stack.Screen 
+        name="CalendarMain" 
+        component={CalendarScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="EventDetails" 
+        component={EventDetailsScreen}
+        options={{ 
+          title: '',
+          headerTransparent: true,
+          headerStyle: { backgroundColor: 'transparent' },
+        }}
+      />
+    </Stack.Navigator>
+  );
+}
+
 // Stack Navigator for Search
 function SearchStack() {
   return (
@@ -281,14 +318,14 @@ function BottomTabNavigator() {
             case 'Create':
               iconName = focused ? 'add-circle' : 'add-circle-outline';
               break;
+            case 'Calendar':
+              iconName = focused ? 'calendar' : 'calendar-outline';
+              break;
             case 'Search':
               iconName = focused ? 'search' : 'search-outline';
               break;
             case 'Notifications':
               return <NotificationTabIcon focused={focused} color={color} size={size} />;
-            case 'Profile':
-              iconName = focused ? 'person' : 'person-outline';
-              break;
             default:
               iconName = 'help-outline';
           }
@@ -336,9 +373,9 @@ function BottomTabNavigator() {
         options={{ tabBarLabel: 'Home' }}
       />
       <Tab.Screen 
-        name="Search" 
-        component={SearchStack}
-        options={{ tabBarLabel: 'Search' }}
+        name="Calendar" 
+        component={CalendarStack}
+        options={{ tabBarLabel: 'Calendar' }}
       />
       <Tab.Screen 
         name="Create" 
@@ -349,14 +386,14 @@ function BottomTabNavigator() {
         }}
       />
       <Tab.Screen 
+        name="Search" 
+        component={SearchStack}
+        options={{ tabBarLabel: 'Search' }}
+      />
+      <Tab.Screen 
         name="Notifications" 
         component={NotificationsStack}
         options={{ tabBarLabel: 'Activity' }}
-      />
-      <Tab.Screen 
-        name="Profile" 
-        component={ProfileStack}
-        options={{ tabBarLabel: 'Profile' }}
       />
     </Tab.Navigator>
   );
@@ -395,6 +432,14 @@ function RootStackNavigator() {
       <Stack.Screen 
         name="Friends" 
         component={FriendsScreen}
+        options={{
+          presentation: 'modal',
+          animationTypeForReplace: 'push',
+        }}
+      />
+      <Stack.Screen 
+        name="Calendar" 
+        component={CalendarScreen}
         options={{
           presentation: 'modal',
           animationTypeForReplace: 'push',

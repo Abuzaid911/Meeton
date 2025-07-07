@@ -6,6 +6,7 @@ import {
   ValidationError,
   NotFoundError 
 } from '../utils/errors';
+import NotificationService from '../services/notificationService';
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -102,6 +103,18 @@ class FriendController {
         }
       });
 
+      // Send notification to the receiver
+      try {
+        await NotificationService.sendFriendRequestNotification(
+          receiverId,
+          req.user.name || req.user.username,
+          friendRequest.id
+        );
+      } catch (notificationError) {
+        console.error('Failed to send friend request notification:', notificationError);
+        // Don't fail the request if notification fails
+      }
+
       sendSuccess(res, friendRequest, 'Friend request sent successfully');
     } catch (error) {
       next(error);
@@ -183,6 +196,20 @@ class FriendController {
           }
         }
       });
+
+      // Send notification to the sender if request was accepted
+      if (action === 'ACCEPTED') {
+        try {
+          await NotificationService.sendFriendRequestAcceptedNotification(
+            friendRequest.senderId,
+            req.user.name || req.user.username,
+            requestId
+          );
+        } catch (notificationError) {
+          console.error('Failed to send friend request accepted notification:', notificationError);
+          // Don't fail the request if notification fails
+        }
+      }
 
       sendSuccess(res, updatedRequest, `Friend request ${action.toLowerCase()} successfully`);
     } catch (error) {

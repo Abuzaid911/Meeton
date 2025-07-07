@@ -89,6 +89,11 @@ export const isUserAttending = (attendees: Array<{ rsvp: RSVP; user: { id: strin
   return userAttendee?.rsvp === RSVP.YES;
 };
 
+export const canUserUploadPhotos = (attendees: Array<{ rsvp: RSVP; user: { id: string } }>, userId: string): boolean => {
+  const userAttendee = attendees.find(attendee => attendee.user.id === userId);
+  return userAttendee?.rsvp === RSVP.YES || userAttendee?.rsvp === RSVP.MAYBE;
+};
+
 export const getUserRSVPStatus = (attendees: Array<{ rsvp: RSVP; user: { id: string } }>, userId: string): RSVP => {
   const userAttendee = attendees.find(attendee => attendee.user.id === userId);
   return userAttendee?.rsvp || RSVP.NO;

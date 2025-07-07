@@ -84,6 +84,28 @@ router.delete(
   imageController.deleteEventPhoto
 );
 
+/**
+ * Upload multiple event photos to album (batch upload)
+ * POST /api/images/event/:eventId/photos/batch
+ */
+router.post(
+  '/event/:eventId/photos/batch',
+  uploadLimiter,
+  authenticate,
+  ImageController.getMultipleUploadMiddleware(),
+  imageController.uploadMultipleEventPhotos
+);
+
+/**
+ * Check upload permissions for event
+ * GET /api/images/event/:eventId/upload-permissions
+ */
+router.get(
+  '/event/:eventId/upload-permissions',
+  authenticate,
+  imageController.checkEventUploadPermissions
+);
+
 // ============================================================================
 // Image Utility Routes
 // ============================================================================

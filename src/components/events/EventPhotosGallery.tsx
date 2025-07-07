@@ -14,12 +14,18 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ImageService, { EventPhoto, ImageUploadProgress } from '../../services/imageService';
+import APIService from '../../services/api';
 
 interface EventPhotosGalleryProps {
   eventId: string;
   canUpload?: boolean;
   onPhotoUploaded?: (photo: EventPhoto) => void;
   onError?: (error: string) => void;
+  uploadPermissions?: {
+    canUpload: boolean;
+    reason?: string;
+    rsvpStatus?: string;
+  };
 }
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -30,6 +36,7 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
   canUpload = false,
   onPhotoUploaded,
   onError,
+  uploadPermissions,
 }) => {
   const [photos, setPhotos] = useState<EventPhoto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,10 +45,13 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [showCaptionModal, setShowCaptionModal] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const [selectedImageUris, setSelectedImageUris] = useState<string[]>([]);
   const [caption, setCaption] = useState('');
+  const [captions, setCaptions] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [batchUploadMode, setBatchUploadMode] = useState(false);
 
   useEffect(() => {
     loadPhotos();
@@ -84,7 +94,14 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
   };
 
   const handleAddPhoto = () => {
-    if (!canUpload) return;
+    if (!canUpload) {
+      Alert.alert(
+        'Cannot Upload Photos',
+        uploadPermissions?.reason || 'You do not have permission to upload photos to this event.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     setShowImagePicker(true);
   };
 
@@ -93,13 +110,18 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
     try {
       const result = await ImageService.pickFromCamera({
         allowsEditing: true,
-        aspect: undefined, // Remove fixed aspect ratio to allow natural ratios
-        quality: 0.9, // Increase quality from 0.8 to 0.9
+        aspect: undefined,
+        quality: 0.9,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setSelectedImageUri(result.assets[0].uri);
-        setShowCaptionModal(true);
+        if (batchUploadMode) {
+          setSelectedImageUris(prev => [...prev, result.assets[0].uri]);
+          setCaptions(prev => [...prev, '']);
+        } else {
+          setSelectedImageUri(result.assets[0].uri);
+          setShowCaptionModal(true);
+        }
       }
     } catch (error) {
       console.error('Camera error:', error);
@@ -111,14 +133,22 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
     setShowImagePicker(false);
     try {
       const result = await ImageService.pickFromGallery({
-        allowsEditing: true,
-        aspect: undefined, // Remove fixed aspect ratio to allow natural ratios
-        quality: 0.9, // Increase quality from 0.8 to 0.9
+        allowsEditing: !batchUploadMode,
+        aspect: batchUploadMode ? undefined : undefined,
+        quality: 0.9,
+        allowsMultipleSelection: batchUploadMode,
+        selectionLimit: batchUploadMode ? 10 : 1,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setSelectedImageUri(result.assets[0].uri);
-        setShowCaptionModal(true);
+        if (batchUploadMode) {
+          const newUris = result.assets.map(asset => asset.uri);
+          setSelectedImageUris(prev => [...prev, ...newUris]);
+          setCaptions(prev => [...prev, ...new Array(newUris.length).fill('')]);
+        } else {
+          setSelectedImageUri(result.assets[0].uri);
+          setShowCaptionModal(true);
+        }
       }
     } catch (error) {
       console.error('Gallery error:', error);
@@ -131,7 +161,7 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
 
     setShowCaptionModal(false);
     setUploading(true);
-    setUploadProgress(null);
+    setUploadProgress({ loaded: 0, total: 100, percentage: 0 });
 
     try {
       const result = await ImageService.uploadEventPhoto(
@@ -141,16 +171,53 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
         handleProgress
       );
 
-      // Add the new photo to the beginning of the list
       setPhotos(prev => [result, ...prev]);
       onPhotoUploaded?.(result);
       
-      // Reset form
       setSelectedImageUri(null);
       setCaption('');
     } catch (error) {
       console.error('Upload error:', error);
       onError?.(error instanceof Error ? error.message : 'Failed to upload photo');
+    } finally {
+      setUploading(false);
+      setUploadProgress(null);
+    }
+  };
+
+  const uploadBatchPhotos = async () => {
+    if (selectedImageUris.length === 0) return;
+
+    setUploading(true);
+    setUploadProgress({ loaded: 0, total: 100, percentage: 0 });
+
+    try {
+      const result = await APIService.uploadMultipleEventPhotos(
+        eventId,
+        selectedImageUris,
+        captions.filter(cap => cap.trim() !== '')
+      );
+
+      if (result && result.photos.length > 0) {
+        setPhotos(prev => [...result.photos, ...prev]);
+        
+        result.photos.forEach((photo: EventPhoto) => {
+          onPhotoUploaded?.(photo);
+        });
+
+        Alert.alert(
+          'Photos Uploaded!',
+          `Successfully uploaded ${result.uploadedCount} out of ${result.totalAttempted} photos.`,
+          [{ text: 'Great!' }]
+        );
+      }
+
+      setSelectedImageUris([]);
+      setCaptions([]);
+      setBatchUploadMode(false);
+    } catch (error) {
+      console.error('Batch upload error:', error);
+      onError?.(error instanceof Error ? error.message : 'Failed to upload photos');
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -234,6 +301,42 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
 
   const renderAddButton = () => {
     if (!canUpload) return null;
+
+    if (batchUploadMode && selectedImageUris.length > 0) {
+      return (
+        <View style={styles.batchUploadContainer}>
+          <Text style={styles.batchUploadTitle}>
+            {selectedImageUris.length} photo{selectedImageUris.length !== 1 ? 's' : ''} selected
+          </Text>
+          <View style={styles.batchUploadButtons}>
+            <TouchableOpacity 
+              style={[styles.batchButton, styles.cancelBatchButton]}
+              onPress={() => {
+                setSelectedImageUris([]);
+                setCaptions([]);
+                setBatchUploadMode(false);
+              }}
+            >
+              <Text style={styles.cancelBatchText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.batchButton, styles.addMoreButton]}
+              onPress={() => setShowImagePicker(true)}
+              disabled={selectedImageUris.length >= 10}
+            >
+              <Text style={styles.addMoreText}>Add More</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.batchButton, styles.uploadBatchButton]}
+              onPress={uploadBatchPhotos}
+              disabled={uploading}
+            >
+              <Text style={styles.uploadBatchText}>Upload All</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
 
     return (
       <TouchableOpacity 
@@ -324,12 +427,34 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
             
             <TouchableOpacity style={styles.modalOption} onPress={pickFromGallery}>
               <Ionicons name="images" size={24} color="#007AFF" />
-              <Text style={styles.modalOptionText}>Choose from Gallery</Text>
+              <Text style={styles.modalOptionText}>
+                {batchUploadMode ? 'Choose Multiple Photos' : 'Choose from Gallery'}
+              </Text>
             </TouchableOpacity>
+
+            {!batchUploadMode && (
+              <TouchableOpacity 
+                style={styles.modalOption} 
+                onPress={() => {
+                  setBatchUploadMode(true);
+                  setShowImagePicker(false);
+                  // Re-open to allow multiple selection
+                  setTimeout(() => setShowImagePicker(true), 100);
+                }}
+              >
+                <Ionicons name="albums" size={24} color="#007AFF" />
+                <Text style={styles.modalOptionText}>Upload Multiple Photos</Text>
+              </TouchableOpacity>
+            )}
             
             <TouchableOpacity 
               style={[styles.modalOption, styles.cancelOption]} 
-              onPress={() => setShowImagePicker(false)}
+              onPress={() => {
+                setShowImagePicker(false);
+                if (batchUploadMode && selectedImageUris.length === 0) {
+                  setBatchUploadMode(false);
+                }
+              }}
             >
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
@@ -602,6 +727,61 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     fontWeight: '600',
+  },
+  batchUploadContainer: {
+    padding: 16,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    borderRadius: 12,
+    margin: 8,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  batchUploadTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#007AFF',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  batchUploadButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  batchButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelBatchButton: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderWidth: 1,
+    borderColor: '#FF3B30',
+  },
+  addMoreButton: {
+    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: '#FF9500',
+  },
+  uploadBatchButton: {
+    backgroundColor: '#007AFF',
+  },
+  cancelBatchText: {
+    color: '#FF3B30',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  addMoreText: {
+    color: '#FF9500',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  uploadBatchText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
 

@@ -269,6 +269,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         APIService.getSuggestedFriends()
       ]);
 
+      console.log('📊 ProfileScreen loaded friends data:', {
+        friends: friends?.length || 0,
+        received: requests?.received?.length || 0,
+        sent: requests?.sent?.length || 0,
+        suggested: suggested?.length || 0
+      });
+
       const friendsData = {
         friends: friends || [],
         requests: requests || { sent: [], received: [] },
@@ -476,31 +483,40 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   };
 
   const handleViewMyEvents = () => {
-    navigation.navigate('Home', { 
-      screen: 'HomeMain',
-      params: { 
-        filter: 'my-events',
-        title: 'My Events'
+    navigation.navigate('Main', { 
+      screen: 'Home',
+      params: {
+        screen: 'HomeMain',
+        params: { 
+          filter: 'my-events',
+          title: 'My Events'
+        }
       }
     });
   };
 
   const handleViewHostedEvents = () => {
-    navigation.navigate('Home', { 
-      screen: 'HomeMain',
-      params: { 
-        filter: 'hosted',
-        title: 'Events I\'m Hosting'
+    navigation.navigate('Main', { 
+      screen: 'Home',
+      params: {
+        screen: 'HomeMain',
+        params: { 
+          filter: 'hosted',
+          title: 'Events I\'m Hosting'
+        }
       }
     });
   };
 
   const handleViewAttendingEvents = () => {
-    navigation.navigate('Home', { 
-      screen: 'HomeMain',
-      params: { 
-        filter: 'attending',
-        title: 'Events I\'m Attending'
+    navigation.navigate('Main', { 
+      screen: 'Home',
+      params: {
+        screen: 'HomeMain',
+        params: { 
+          filter: 'attending',
+          title: 'Events I\'m Attending'
+        }
       }
     });
   };
@@ -615,32 +631,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       ],
     },
     {
-      title: 'Events',
-      items: [
-        {
-          icon: 'calendar-outline',
-          label: 'My Events',
-          subtitle: 'All events (hosting & attending)',
-          onPress: handleViewMyEvents,
-          showChevron: true,
-        },
-        {
-          icon: 'star-outline',
-          label: 'Hosting',
-          subtitle: `${userStats.eventsHosted} events you're hosting`,
-          onPress: handleViewHostedEvents,
-          showChevron: true,
-        },
-        {
-          icon: 'checkmark-circle-outline',
-          label: 'Attending',
-          subtitle: `${userStats.eventsAttended} events you're attending`,
-          onPress: handleViewAttendingEvents,
-          showChevron: true,
-        },
-      ],
-    },
-    {
       title: 'Account Actions',
       items: [
         {
@@ -746,18 +736,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* Header for other user's profile */}
-      {!isOwnProfile && (
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <BlurView intensity={60} tint="dark" style={styles.headerButtonBlur}>
-              <Ionicons name="arrow-back" size={24} color={Colors.white} />
-            </BlurView>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Profile</Text>
-          <View style={{ width: 44 }} />
-        </View>
-      )}
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => navigation.goBack()}
+        >
+          <BlurView intensity={60} tint="dark" style={styles.headerButtonBlur}>
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </BlurView>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Profile</Text>
+        <View style={{ width: 44 }} />
+      </View>
 
       <ScrollView 
         style={styles.scrollView}
@@ -994,17 +985,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </>
         )}
 
-        {/* Stats Section - Only show for own profile */}
-        {isOwnProfile && (
-          <View style={styles.statsSection}>
-            <View style={styles.statsContainer}>
-              {stats.map((stat, index) => (
-                <StatCard key={index} stat={stat} index={index} />
-              ))}
-            </View>
-          </View>
-        )}
-
         {/* Menu Sections - Only show for own profile */}
         {isOwnProfile && (
           <View style={styles.menuContainer}>
@@ -1058,6 +1038,7 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     borderWidth: 4,
     borderColor: Colors.white,
+    
   },
   avatarRing: {
     position: 'absolute',

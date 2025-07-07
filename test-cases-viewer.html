@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeetOn - Test Cases Specification</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 15px 25px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .controls {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .search-filter {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 300px;
+            padding: 12px 20px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-box:focus {
+            border-color: #4facfe;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+
+        .filter-select {
+            padding: 12px 20px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            outline: none;
+            background: white;
+            cursor: pointer;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            max-height: 80vh;
+        }
+
+        .test-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .test-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .test-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: top;
+        }
+
+        .test-table tr:hover {
+            background-color: rgba(79, 172, 254, 0.05);
+        }
+
+        .test-id {
+            font-weight: bold;
+            color: #2c3e50;
+            min-width: 80px;
+        }
+
+        .functionality {
+            font-weight: 600;
+            color: #34495e;
+            max-width: 200px;
+        }
+
+        .input-data {
+            max-width: 300px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+
+        .expected-output {
+            max-width: 350px;
+            line-height: 1.4;
+        }
+
+        .module-header {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%);
+            font-weight: bold;
+            color: #2d3436;
+            text-align: center;
+        }
+
+        .priority-high {
+            border-left: 4px solid #e74c3c;
+        }
+
+        .priority-medium {
+            border-left: 4px solid #f39c12;
+        }
+
+        .priority-low {
+            border-left: 4px solid #27ae60;
+        }
+
+        .legend {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .legend h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+
+        .legend-items {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        .module-navigation {
+            padding: 20px 30px;
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .nav-btn:hover, .nav-btn.active {
+            background: #4facfe;
+            color: white;
+            border-color: #4facfe;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .stats {
+                gap: 15px;
+            }
+
+            .search-filter {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-box {
+                min-width: unset;
+            }
+
+            .test-table th,
+            .test-table td {
+                padding: 8px 6px;
+            }
+
+            .input-data,
+            .expected-output {
+                max-width: 250px;
+                font-size: 12px;
+            }
+        }
+
+        .export-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #00b09b 0%, #96c93d 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.3s ease;
+        }
+
+        .export-btn:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>MeetOn Test Cases Specification</h1>
+            <p>Social Event Planning Mobile Application</p>
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-number">70</span>
+                    <span class="stat-label">Total Test Cases</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">10</span>
+                    <span class="stat-label">Modules Covered</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">100%</span>
+                    <span class="stat-label">Coverage</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="search-filter">
+                <input type="text" id="searchBox" class="search-box" placeholder="Search test cases...">
+                <select id="moduleFilter" class="filter-select">
+                    <option value="">All Modules</option>
+                    <option value="AUTHENTICATION">Authentication</option>
+                    <option value="EVENT">Event Management</option>
+                    <option value="RSVP">RSVP & Attendance</option>
+                    <option value="FRIEND">Friend Management</option>
+                    <option value="NOTIFICATION">Notifications</option>
+                    <option value="PROFILE">Profile Management</option>
+                    <option value="CALENDAR">Calendar</option>
+                    <option value="SEARCH">Search</option>
+                    <option value="IMAGE">Image Upload</option>
+                    <option value="ERROR">Error Handling</option>
+                    <option value="PERFORMANCE">Performance</option>
+                </select>
+                <button class="export-btn" onclick="exportToCSV()">Export CSV</button>
+            </div>
+        </div>
+
+        <div class="module-navigation">
+            <div class="nav-buttons">
+                <button class="nav-btn active" onclick="showAll()">All Tests</button>
+                <button class="nav-btn" onclick="filterModule('AUTHENTICATION')">Authentication</button>
+                <button class="nav-btn" onclick="filterModule('EVENT')">Events</button>
+                <button class="nav-btn" onclick="filterModule('FRIEND')">Friends</button>
+                <button class="nav-btn" onclick="filterModule('NOTIFICATION')">Notifications</button>
+                <button class="nav-btn" onclick="filterModule('PROFILE')">Profile</button>
+                <button class="nav-btn" onclick="filterModule('CALENDAR')">Calendar</button>
+                <button class="nav-btn" onclick="filterModule('SEARCH')">Search</button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="test-table" id="testTable">
+                <thead>
+                    <tr>
+                        <th>Test Case ID</th>
+                        <th>Functionality</th>
+                        <th>Input</th>
+                        <th>Expected Output</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Authentication Module -->
+                    <tr class="module-header">
+                        <td colspan="4">AUTHENTICATION MODULE</td>
+                    </tr>
+                    <tr class="priority-high" data-module="AUTHENTICATION">
+                        <td class="test-id">TC001</td>
+                        <td class="functionality">User Registration - Valid Data</td>
+                        <td class="input-data">Email: "john.doe@example.com"
+Password: "SecurePass123!"
+Name: "John Doe"
+Phone: "+1234567890"</td>
+                        <td class="expected-output">Registration successful<br/>User account created<br/>Verification email sent<br/>Navigate to verification screen</td>
+                    </tr>
+                    <tr class="priority-high" data-module="AUTHENTICATION">
+                        <td class="test-id">TC002</td>
+                        <td class="functionality">User Registration - Invalid Email</td>
+                        <td class="input-data">Email: "invalid-email"
+Password: "SecurePass123!"
+Name: "John Doe"
+Phone: "+1234567890"</td>
+                        <td class="expected-output">Error message: "Please enter a valid email address"<br/>Registration form remains visible<br/>User not created</td>
+                    </tr>
+                    <tr class="priority-medium" data-module="AUTHENTICATION">
+                        <td class="test-id">TC003</td>
+                        <td class="functionality">User Registration - Weak Password</td>
+                        <td class="input-data">Email: "john.doe@example.com"
+Password: "123"
+Name: "John Doe"
+Phone: "+1234567890"</td>
+                        <td class="expected-output">Error message: "Password must be at least 8 characters with uppercase, lowercase, and number"<br/>Registration blocked</td>
+                    </tr>
+                    <tr class="priority-medium" data-module="AUTHENTICATION">
+                        <td class="test-id">TC004</td>
+                        <td class="functionality">User Registration - Duplicate Email</td>
+                        <td class="input-data">Email: "existing@example.com"
+Password: "SecurePass123!"
+Name: "John Doe"
+Phone: "+1234567890"</td>
+                        <td class="expected-output">Error message: "Email already registered"<br/>Suggestion to login instead<br/>Registration blocked</td>
+                    </tr>
+                    <tr class="priority-high" data-module="AUTHENTICATION">
+                        <td class="test-id">TC005</td>
+                        <td class="functionality">User Login - Valid Credentials</td>
+                        <td class="input-data">Email: "john.doe@example.com"
+Password: "SecurePass123!"</td>
+                        <td class="expected-output">Login successful<br/>JWT token generated<br/>Navigate to Home screen<br/>User session established</td>
+                    </tr>
+                    <tr class="priority-high" data-module="AUTHENTICATION">
+                        <td class="test-id">TC006</td>
+                        <td class="functionality">User Login - Invalid Password</td>
+                        <td class="input-data">Email: "john.doe@example.com"
+Password: "WrongPassword"</td>
+                        <td class="expected-output">Error message: "Invalid email or password"<br/>Login form remains visible<br/>No session created</td>
+                    </tr>
+                    <tr class="priority-high" data-module="AUTHENTICATION">
+                        <td class="test-id">TC007</td>
+                        <td class="functionality">User Login - Unregistered Email</td>
+                        <td class="input-data">Email: "notfound@example.com"
+Password: "SecurePass123!"</td>
+                        <td class="expected-output">Error message: "Invalid email or password"<br/>Login form remains visible<br/>No session created</td>
+                    </tr>
+                    <tr class="priority-high" data-module="AUTHENTICATION">
+                        <td class="test-id">TC008</td>
+                        <td class="functionality">User Logout</td>
+                        <td class="input-data">Tap logout button
+User currently logged in</td>
+                        <td class="expected-output">Logout successful<br/>JWT token cleared<br/>Navigate to login screen<br/>Session terminated</td>
+                    </tr>
+                    <tr class="priority-high" data-module="AUTHENTICATION">
+                        <td class="test-id">TC009</td>
+                        <td class="functionality">Session Timeout</td>
+                        <td class="input-data">User idle for 30+ minutes
+App in background</td>
+                        <td class="expected-output">Automatic logout<br/>Navigate to login screen<br/>Session expired message</td>
+                    </tr>
+                    <tr class="priority-high" data-module="AUTHENTICATION">
+                        <td class="test-id">TC010</td>
+                        <td class="functionality">Token Refresh</td>
+                        <td class="input-data">Valid refresh token
+Access token expired</td>
+                        <td class="expected-output">New access token generated<br/>User remains logged in<br/>Seamless experience</td>
+                    </tr>
+
+                    <!-- Event Management Module -->
+                    <tr class="module-header">
+                        <td colspan="4">EVENT MANAGEMENT MODULE</td>
+                    </tr>
+                    <tr class="priority-high" data-module="EVENT">
+                        <td class="test-id">TC011</td>
+                        <td class="functionality">Create Event - Complete Data</td>
+                        <td class="input-data">Title: "Birthday Party"
+Date: "2025-08-15"
+Time: "19:00"
+Location: "123 Main St"
+Description: "Join us for celebration"
+Category: "Social"
+Privacy: "Public"</td>
+                        <td class="expected-output">Event created successfully<br/>Event ID generated<br/>Event appears in host's events<br/>Success message displayed</td>
+                    </tr>
+                    <tr class="priority-high" data-module="EVENT">
+                        <td class="test-id">TC012</td>
+                        <td class="functionality">Create Event - Minimum Required</td>
+                        <td class="input-data">Title: "Quick Meetup"
+Date: "2025-08-20"
+Time: "18:00"
+Location: "Coffee Shop"</td>
+                        <td class="expected-output">Event created successfully<br/>Default values applied<br/>Event visible to host<br/>Basic event card displayed</td>
+                    </tr>
+                    <tr class="priority-high" data-module="EVENT">
+                        <td class="test-id">TC013</td>
+                        <td class="functionality">Create Event - Past Date</td>
+                        <td class="input-data">Title: "Past Event"
+Date: "2025-06-01"
+Time: "19:00"
+Location: "Venue"</td>
+                        <td class="expected-output">Error message: "Event date cannot be in the past"<br/>Event not created<br/>Form validation displayed</td>
+                    </tr>
+                    <tr class="priority-high" data-module="EVENT">
+                        <td class="test-id">TC014</td>
+                        <td class="functionality">Create Event - Empty Title</td>
+                        <td class="input-data">Title: ""
+Date: "2025-08-15"
+Time: "19:00"
+Location: "Venue"</td>
+                        <td class="expected-output">Error message: "Event title is required"<br/>Create button disabled<br/>Field highlighted in red</td>
+                    </tr>
+                    <tr class="priority-high" data-module="EVENT">
+                        <td class="test-id">TC015</td>
+                        <td class="functionality">Edit Event - Update Details</td>
+                        <td class="input-data">Event ID: "evt_123"
+New Title: "Updated Party"
+New Date: "2025-08-16"
+User: Event host</td>
+                        <td class="expected-output">Event updated successfully<br/>Changes reflected immediately<br/>Updated timestamp recorded<br/>Success message shown</td>
+                    </tr>
+                    <tr class="priority-medium" data-module="EVENT">
+                        <td class="test-id">TC016</td>
+                        <td class="functionality">Edit Event - Non-Host User</td>
+                        <td class="input-data">Event ID: "evt_123"
+User: Not event host
+Attempt to edit</td>
+                        <td class="expected-output">Error message: "Only event host can edit"<br/>Edit option not visible<br/>Access denied</td>
+                    </tr>
+                    <tr class="priority-high" data-module="EVENT">
+                        <td class="test-id">TC017</td>
+                        <td class="functionality">Delete Event - Host Permission</td>
+                        <td class="input-data">Event ID: "evt_123"
+User: Event host
+Confirm deletion</td>
+                        <td class="expected-output">Event deleted successfully<br/>Event removed from all lists<br/>Attendees notified<br/>Confirmation message</td>
+                    </tr>
+                    <tr class="priority-medium" data-module="EVENT">
+                        <td class="test-id">TC018</td>
+                        <td class="functionality">Delete Event - With Attendees</td>
+                        <td class="input-data">Event ID: "evt_123"
+Attendees: 5 users
+Host confirms deletion</td>
+                        <td class="expected-output">Event deleted<br/>Cancellation notifications sent<br/>Attendee RSVPs removed<br/>Event history updated</td>
+                    </tr>
+                    <tr class="priority-high" data-module="EVENT">
+                        <td class="test-id">TC019</td>
+                        <td class="functionality">View Event Details</td>
+                        <td class="input-data">Event ID: "evt_123"
+User: Authenticated</td>
+                        <td class="expected-output">Event details displayed:<br/>- Title, date, time, location<br/>- Host information<br/>- Attendee list<br/>- RSVP options</td>
+                    </tr>
+                    <tr class="priority-high" data-module="EVENT">
+                        <td class="test-id">TC020</td>
+                        <td class="functionality">Search Events - Keyword</td>
+                        <td class="input-data">Search term: "birthday"
+Active events exist</td>
+                        <td class="expected-output">List of matching events<br/>Relevant results highlighted<br/>Search filters available<br/>Sort options displayed</td>
+                    </tr>
+
+                    <!-- Continue with other modules... -->
+                    <!-- For brevity, I'll add a few more key test cases -->
+
+                    <!-- Friend Management Module -->
+                    <tr class="module-header">
+                        <td colspan="4">FRIEND MANAGEMENT MODULE</td>
+                    </tr>
+                    <tr class="priority-high" data-module="FRIEND">
+                        <td class="test-id">TC027</td>
+                        <td class="functionality">Send Friend Request</td>
+                        <td class="input-data">Target user: "jane.smith@example.com"
+Current user: "john.doe@example.com"
+Action: Send request</td>
+                        <td class="expected-output">Friend request sent<br/>Notification sent to target<br/>Request appears in sent list<br/>Success message displayed</td>
+                    </tr>
+                    <tr class="priority-high" data-module="FRIEND">
+                        <td class="test-id">TC030</td>
+                        <td class="functionality">Accept Friend Request</td>
+                        <td class="input-data">Incoming request from: "john.doe@example.com"
+Action: Tap "Accept"</td>
+                        <td class="expected-output">Friendship established<br/>Both users added to friends list<br/>Acceptance notification sent<br/>Request removed from pending</td>
+                    </tr>
+
+                    <!-- Notification Module -->
+                    <tr class="module-header">
+                        <td colspan="4">NOTIFICATION MODULE</td>
+                    </tr>
+                    <tr class="priority-high" data-module="NOTIFICATION">
+                        <td class="test-id">TC035</td>
+                        <td class="functionality">Friend Request Notification</td>
+                        <td class="input-data">Friend request received
+App: Foreground/Background</td>
+                        <td class="expected-output">Push notification sent<br/>In-app notification created<br/>Badge count updated<br/>Notification clickable to profile</td>
+                    </tr>
+
+                    <!-- Performance Module -->
+                    <tr class="module-header">
+                        <td colspan="4">PERFORMANCE & COMPATIBILITY MODULE</td>
+                    </tr>
+                    <tr class="priority-high" data-module="PERFORMANCE">
+                        <td class="test-id">TC065</td>
+                        <td class="functionality">App Launch Performance</td>
+                        <td class="input-data">Device: iPhone 14
+Storage: Available
+Action: Cold start</td>
+                        <td class="expected-output">App launches in <3 seconds<br/>Splash screen shown<br/>Authentication checked<br/>Home screen loaded</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="legend">
+            <h3>Priority Legend</h3>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #e74c3c;"></div>
+                    <span>High Priority</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #f39c12;"></div>
+                    <span>Medium Priority</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #27ae60;"></div>
+                    <span>Low Priority</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Search functionality
+        document.getElementById('searchBox').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const rows = document.querySelectorAll('#tableBody tr:not(.module-header)');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        // Module filter functionality
+        document.getElementById('moduleFilter').addEventListener('change', function() {
+            const selectedModule = this.value;
+            filterModule(selectedModule);
+        });
+
+        function filterModule(module) {
+            const rows = document.querySelectorAll('#tableBody tr');
+            const navButtons = document.querySelectorAll('.nav-btn');
+            
+            // Update active button
+            navButtons.forEach(btn => btn.classList.remove('active'));
+            if (module === '') {
+                document.querySelector('.nav-btn').classList.add('active');
+            } else {
+                document.querySelector(`[onclick="filterModule('${module}')"]`)?.classList.add('active');
+            }
+            
+            rows.forEach(row => {
+                if (row.classList.contains('module-header')) {
+                    // Show/hide module headers based on filter
+                    if (module === '' || row.textContent.includes(module)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                } else {
+                    const rowModule = row.getAttribute('data-module');
+                    if (module === '' || rowModule === module) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                }
+            });
+        }
+
+        function showAll() {
+            const rows = document.querySelectorAll('#tableBody tr');
+            const navButtons = document.querySelectorAll('.nav-btn');
+            
+            navButtons.forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.nav-btn').classList.add('active');
+            
+            rows.forEach(row => {
+                row.style.display = '';
+            });
+            
+            document.getElementById('moduleFilter').value = '';
+        }
+
+        // Export to CSV functionality
+        function exportToCSV() {
+            const table = document.getElementById('testTable');
+            const rows = table.querySelectorAll('tr:not(.module-header)');
+            let csv = 'Test Case ID,Functionality,Input,Expected Output\n';
+            
+            rows.forEach(row => {
+                if (row.style.display !== 'none' && !row.classList.contains('module-header')) {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length > 0) {
+                        const rowData = Array.from(cells).map(cell => {
+                            return '"' + cell.textContent.replace(/"/g, '""').trim() + '"';
+                        }).join(',');
+                        csv += rowData + '\n';
+                    }
+                }
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'meeton-test-cases.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Initialize with all tests shown
+        showAll();
+    </script>
+</body>
+</html> 

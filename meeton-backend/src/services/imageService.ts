@@ -353,18 +353,55 @@ class ImageService {
     userId: string,
     imageBuffer: Buffer,
     caption?: string
-  ): Promise<{ id: string; imageUrl: string; caption?: string }> {
+  ): Promise<{ id: string; imageUrl: string; caption?: string; user: any; uploadedAt: Date }> {
     try {
-      // Verify user is attending the event
+      // Verify user is attending the event (YES or MAYBE)
       const attendee = await prisma.attendee.findUnique({
         where: { 
           userId_eventId: { userId, eventId }
         },
-        include: { event: true }
+        include: { 
+          event: {
+            select: {
+              id: true,
+              name: true,
+              date: true,
+              hostId: true,
+              isArchived: true
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              image: true
+            }
+          }
+        }
       });
 
       if (!attendee) {
         throw new ValidationError('Only event attendees can upload photos');
+      }
+
+      // Check if user is actually going or maybe going
+      if (attendee.rsvp !== 'YES' && attendee.rsvp !== 'MAYBE') {
+        throw new ValidationError('Only users who are going or might be going can upload photos');
+      }
+
+      // Check if event is archived
+      if (attendee.event.isArchived) {
+        throw new ValidationError('Cannot upload photos to archived events');
+      }
+
+      // Check if event date has passed (allow uploads for up to 7 days after event)
+      const eventDate = new Date(attendee.event.date);
+      const currentDate = new Date();
+      const daysSinceEvent = Math.ceil((currentDate.getTime() - eventDate.getTime()) / (1000 * 3600 * 24));
+      
+      if (daysSinceEvent > 7) {
+        throw new ValidationError('Photo uploads are only allowed until 7 days after the event');
       }
 
       // Upload image
@@ -373,11 +410,13 @@ class ImageService {
         ImageType.EVENT_PHOTO,
         userId,
         {
-          tags: ['event_photo', eventId, userId],
+          tags: ['event_photo', eventId, userId, attendee.rsvp.toLowerCase()],
           context: { 
             event_id: eventId, 
             uploader_id: userId,
-            purpose: 'event_album'
+            purpose: 'event_album',
+            rsvp_status: attendee.rsvp,
+            event_name: attendee.event.name
           }
         }
       );
@@ -390,13 +429,25 @@ class ImageService {
           eventId,
           userId,
           storageKey: uploadResult.publicId
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              image: true
+            }
+          }
         }
       });
 
       return {
         id: eventPhoto.id,
         imageUrl: eventPhoto.imageUrl,
-        caption: eventPhoto.caption || undefined
+        caption: eventPhoto.caption || undefined,
+        user: eventPhoto.user,
+        uploadedAt: eventPhoto.uploadedAt
       };
     } catch (error) {
       console.error('Event photo upload failed:', error);
@@ -680,6 +731,204 @@ class ImageService {
     } catch (error) {
       console.error('Failed to check image reference:', error);
       return true; // Assume referenced to avoid accidental deletion
+    }
+  }
+
+  /**
+   * Add multiple photos to event album (batch upload)
+   */
+  async addMultipleEventPhotos(
+    eventId: string,
+    userId: string,
+    imageBuffers: Buffer[],
+    captions: (string | undefined)[]
+  ): Promise<Array<{ id: string; imageUrl: string; caption?: string; user: any; uploadedAt: Date }>> {
+    try {
+      // First verify permissions (same logic as single upload)
+      const attendee = await prisma.attendee.findUnique({
+        where: { 
+          userId_eventId: { userId, eventId }
+        },
+        include: { 
+          event: {
+            select: {
+              id: true,
+              name: true,
+              date: true,
+              hostId: true,
+              isArchived: true
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              image: true
+            }
+          }
+        }
+      });
+
+      if (!attendee) {
+        throw new ValidationError('Only event attendees can upload photos');
+      }
+
+      if (attendee.rsvp !== 'YES' && attendee.rsvp !== 'MAYBE') {
+        throw new ValidationError('Only users who are going or might be going can upload photos');
+      }
+
+      if (attendee.event.isArchived) {
+        throw new ValidationError('Cannot upload photos to archived events');
+      }
+
+      // Check upload limit (max 10 photos at once)
+      if (imageBuffers.length > 10) {
+        throw new ValidationError('Maximum 10 photos can be uploaded at once');
+      }
+
+      const results = [];
+
+      // Upload each photo
+      for (let i = 0; i < imageBuffers.length; i++) {
+        const buffer = imageBuffers[i];
+        const caption = captions[i];
+
+        try {
+          // Upload image
+          const uploadResult = await this.uploadFromBuffer(
+            buffer,
+            ImageType.EVENT_PHOTO,
+            userId,
+            {
+              tags: ['event_photo', eventId, userId, attendee.rsvp.toLowerCase(), 'batch_upload'],
+              context: { 
+                event_id: eventId, 
+                uploader_id: userId,
+                purpose: 'event_album',
+                rsvp_status: attendee.rsvp,
+                event_name: attendee.event.name,
+                batch_index: i.toString()
+              }
+            }
+          );
+
+          // Create event photo record
+          const eventPhoto = await prisma.eventPhoto.create({
+            data: {
+              imageUrl: uploadResult.secureUrl,
+              caption: caption || null,
+              eventId,
+              userId,
+              storageKey: uploadResult.publicId
+            },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  username: true,
+                  image: true
+                }
+              }
+            }
+          });
+
+          results.push({
+            id: eventPhoto.id,
+            imageUrl: eventPhoto.imageUrl,
+            caption: eventPhoto.caption || undefined,
+            user: eventPhoto.user,
+            uploadedAt: eventPhoto.uploadedAt
+          });
+        } catch (error) {
+          console.error(`Failed to upload photo ${i + 1}:`, error);
+          // Continue with other photos, don't fail entire batch
+          continue;
+        }
+      }
+
+      if (results.length === 0) {
+        throw new ValidationError('Failed to upload any photos');
+      }
+
+      return results;
+    } catch (error) {
+      console.error('Batch event photo upload failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if user can upload photos to event
+   */
+  async canUserUploadToEvent(eventId: string, userId: string): Promise<{
+    canUpload: boolean;
+    reason?: string;
+    rsvpStatus?: string;
+  }> {
+    try {
+      const attendee = await prisma.attendee.findUnique({
+        where: { 
+          userId_eventId: { userId, eventId }
+        },
+        include: { 
+          event: {
+            select: {
+              id: true,
+              date: true,
+              isArchived: true
+            }
+          }
+        }
+      });
+
+      if (!attendee) {
+        return {
+          canUpload: false,
+          reason: 'You must RSVP to this event to upload photos'
+        };
+      }
+
+      if (attendee.rsvp !== 'YES' && attendee.rsvp !== 'MAYBE') {
+        return {
+          canUpload: false,
+          reason: 'Only users who are going or might be going can upload photos',
+          rsvpStatus: attendee.rsvp
+        };
+      }
+
+      if (attendee.event.isArchived) {
+        return {
+          canUpload: false,
+          reason: 'This event has been archived',
+          rsvpStatus: attendee.rsvp
+        };
+      }
+
+      // Check if event date has passed (allow uploads for up to 7 days after event)
+      const eventDate = new Date(attendee.event.date);
+      const currentDate = new Date();
+      const daysSinceEvent = Math.ceil((currentDate.getTime() - eventDate.getTime()) / (1000 * 3600 * 24));
+      
+      if (daysSinceEvent > 7) {
+        return {
+          canUpload: false,
+          reason: 'Photo uploads are only allowed until 7 days after the event',
+          rsvpStatus: attendee.rsvp
+        };
+      }
+
+      return {
+        canUpload: true,
+        rsvpStatus: attendee.rsvp
+      };
+    } catch (error) {
+      console.error('Failed to check upload permissions:', error);
+      return {
+        canUpload: false,
+        reason: 'Failed to check permissions'
+      };
     }
   }
 }

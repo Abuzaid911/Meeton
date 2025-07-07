@@ -555,25 +555,6 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ navigation }) => 
           </View>
         </View>
 
-        {/* Events Section */}
-        {/* {userEvents.length > 0 && (
-          <View style={styles.section}>
-            <BlurView intensity={80} tint="dark" style={styles.sectionBlur}>
-              <View style={styles.sectionContent}>
-                <Text style={styles.sectionTitle}>Events ({userEvents.length})</Text>
-                <FlatList
-                  data={userEvents.slice(0, 10)} // Show max 10 events
-                  renderItem={renderEventCard}
-                  keyExtractor={(item) => item.id}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.eventsListContainer}
-                />
-              </View>
-            </BlurView>
-          </View>
-        )} */}
-
         {/* Friends Section */}
         {userFriends.length > 0 && (
           <View style={styles.section}>

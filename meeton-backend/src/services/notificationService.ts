@@ -44,30 +44,29 @@ export class NotificationService {
         return false;
       }
 
+      // Store notification in database (always create, regardless of push notification success)
+      await this.createNotificationRecord(
+        userId,
+        notification.title,
+        notification.body,
+        sourceType,
+        sourceId,
+        notification.actionUrl
+      );
+
       // Get user's device tokens (we'll add this to user model later)
       const deviceTokens = await this.getUserDeviceTokens(userId);
       
       if (deviceTokens.length === 0) {
-        console.log(`No device tokens found for user ${userId}`);
-        return false;
+        console.log(`No device tokens found for user ${userId}, but notification stored in database`);
+        return true; // Still return true since notification was stored
       }
 
       // Send notification via Firebase
       const success = await this.sendFirebaseNotification(deviceTokens, notification);
       
-      if (success) {
-        // Store notification in database
-        await this.createNotificationRecord(
-          userId,
-          notification.title,
-          notification.body,
-          sourceType,
-          sourceId,
-          notification.actionUrl
-        );
-      }
-
-      return success;
+      // Return true since notification was stored in database
+      return true;
     } catch (error) {
       console.error('Error sending notification to user:', error);
       return false;
@@ -319,6 +318,30 @@ export class NotificationService {
           requestId,
         },
         actionUrl: `/friends/requests`,
+      },
+      'FRIEND_REQUEST',
+      requestId
+    );
+  }
+
+  /**
+   * Send notification for friend request acceptance
+   */
+  static async sendFriendRequestAcceptedNotification(
+    senderId: string,
+    accepterName: string,
+    requestId: string
+  ): Promise<boolean> {
+    return this.sendNotificationToUser(
+      senderId,
+      {
+        title: 'Friend Request Accepted',
+        body: `${accepterName} accepted your friend request`,
+        data: {
+          type: 'friend_request_accepted',
+          requestId,
+        },
+        actionUrl: `/friends`,
       },
       'FRIEND_REQUEST',
       requestId

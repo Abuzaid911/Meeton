@@ -1394,7 +1394,7 @@ const EventDetailsScreen: React.FC = () => {
                       <Text style={styles.userProfileLocation}>{selectedUser.location}</Text>
                     </View>
                     
-                    <View style={styles.userProfileInterests}>
+                    {/* <View style={styles.userProfileInterests}>
                       <Text style={styles.userProfileInterestsTitle}>Interests</Text>
                       <View style={styles.interestTags}>
                         {selectedUser.interests?.map((interest, index) => (
@@ -1403,7 +1403,7 @@ const EventDetailsScreen: React.FC = () => {
                           </View>
                         ))}
                       </View>
-                    </View>
+                    </View> */}
                     
                     <View style={styles.userProfileActions}>
                       {selectedUser?.id !== user?.id && (
