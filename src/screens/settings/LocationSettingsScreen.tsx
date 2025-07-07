@@ -46,7 +46,7 @@ export default function LocationSettingsScreen() {
       `Distance: ${user.distance}m away`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'View Profile', onPress: () => navigation.navigate('Profile', { userId: user.userId }) },
+        { text: 'View Profile', onPress: () => navigation.navigate('UserProfile', { userId: user.userId }) },
       ]
     );
   };

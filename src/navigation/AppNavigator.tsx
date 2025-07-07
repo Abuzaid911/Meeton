@@ -23,6 +23,7 @@ import GuestListScreen from '../screens/events/GuestListScreen';
 import EventPhotosScreen from '../screens/events/EventPhotosScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import FriendsScreen from '../screens/profile/FriendsScreen';
+import UserProfileScreen from '../screens/profile/UserProfileScreen';
 import WelcomeScreen from '../screens/auth/WelcomeScreen';
 import LocationSettingsScreen from '../screens/settings/LocationSettingsScreen';
 
@@ -119,7 +120,7 @@ function HomeStack() {
       <Stack.Screen 
         name="GuestList" 
         component={GuestListScreen}
-        options={{ title: 'Guest List' }}
+        options={{ title: 'Guest List', headerShown: false }}
       />
       <Stack.Screen 
         name="EventPhotos" 
@@ -249,16 +250,16 @@ function ProfileStack() {
         name="EditProfile" 
         component={EditProfileScreen}
         options={{ 
-          title: 'Edit Profile',
-          presentation: 'modal'
+          presentation: 'modal',
+          headerShown: false
         }}
       />
       <Stack.Screen 
         name="LocationSettings" 
         component={LocationSettingsScreen}
         options={{ 
-          headerShown: false,
-          presentation: 'modal'
+          presentation: 'modal',
+          headerShown: false
         }}
       />
     </Stack.Navigator>
@@ -376,8 +377,16 @@ function RootStackNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Main" component={BottomTabNavigator} />
       <Stack.Screen 
-        name="UserProfile" 
+        name="Profile" 
         component={ProfileScreen}
+        options={{
+          presentation: 'modal',
+          animationTypeForReplace: 'push',
+        }}
+      />
+      <Stack.Screen 
+        name="UserProfile" 
+        component={UserProfileScreen}
         options={{
           presentation: 'modal',
           animationTypeForReplace: 'push',

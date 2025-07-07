@@ -263,8 +263,14 @@ const EventListScreen: React.FC = () => {
                               </View>
                             )}
                           </View>
-                           <Text style={styles.attendeeCountText}>{attendeeCount} going</Text>
+                           <View style={styles.attendeeCountBadge}>
+                             <Ionicons name="people" size={14} color={Colors.white} />
+                             <Text style={styles.attendeeCountText}>
+                               {attendeeCount} Going
+                             </Text>
+                           </View>
                         </View>
+                      
                       )}
                     </View>
                   </LinearGradient>
@@ -346,7 +352,12 @@ const EventListScreen: React.FC = () => {
                               </View>
                             )}
                           </View>
-                          <Text style={styles.attendeeCountText}>{attendeeCount} going</Text>
+                          <View style={styles.attendeeCountBadge}>
+                            <Ionicons name="people" size={14} color={Colors.white} />
+                            <Text style={styles.attendeeCountText}>
+                              {attendeeCount} Going
+                            </Text>
+                          </View>
                         </View>
                       )}
                     </View>
@@ -493,8 +504,8 @@ const EventListScreen: React.FC = () => {
               <Text style={styles.modalEmail}>{user?.email || ''}</Text>
 
               <TouchableOpacity style={styles.modalButton} onPress={handleSettingsPress}>
-                <Ionicons name="settings-outline" size={24} color={Colors.white} />
-                <Text style={styles.modalButtonText}>Settings</Text>
+                <Ionicons name="person" size={24} color={Colors.white} />
+                <Text style={styles.modalButtonText}>Profile</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalButton, styles.logoutButton]} onPress={handleLogoutPress}>
                 <Ionicons name="log-out-outline" size={24} color={Colors.systemRed} />
@@ -562,8 +573,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   appLogo: {
-    width: 120,
+    width: 240,
     height: 64,
+    shadowColor: Colors.white,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    borderRadius: 10,
   },
   profileButton: {
     width: 40,
@@ -914,16 +931,14 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontWeight: FontWeight.medium,
   },
-  backButton: {
-    padding: Spacing.sm,
-  },
-  headerTitle: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+  attendeeCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.xs,
   },
 });
 

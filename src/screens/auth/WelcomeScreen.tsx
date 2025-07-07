@@ -274,7 +274,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
                         <Ionicons 
                           name="arrow-forward" 
                           size={20}
-                          color={(!formData.name.trim() || !formData.username.trim() || usernameAvailable === false) ? Colors.black : Colors.black}                         />
+                          color={(!formData.name.trim() || !formData.username.trim() || usernameAvailable === false) ? Colors.black : Colors.white}                         />
                       </>
                     )}
                   </LinearGradient>
@@ -482,14 +482,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xl,
     gap: Spacing.sm,
+    // borderRadius: BorderRadius.lg,
+    // borderWidth: 1,
+    borderColor: Colors.white,
+    backgroundColor: Colors.gray,
   },
   continueButtonText: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
-    color: Colors.black,
+    color: Colors.white,
+    borderRadius: BorderRadius.lg,
   },
   continueButtonTextDisabled: {
-    color: Colors.black,
+    color: Colors.white,
   },
 });
 

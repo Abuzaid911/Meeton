@@ -1072,6 +1072,27 @@ export class APIService {
   }
 
   /**
+   * Get friends for a specific user
+   */
+  static async getUserFriends(userId: string): Promise<UserProfile[]> {
+    try {
+      const response = await this.makeRequest<UserProfile[]>(`/friends/${userId}`, {
+        requireAuth: true,
+      });
+
+      if (response.success && response.data) {
+        console.log('User friends loaded:', response.data.length, 'friends for user', userId);
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('Failed to get user friends:', error);
+      // For now, return an empty array if the endpoint doesn't exist yet
+      return [];
+    }
+  }
+
+  /**
    * Get pending friend requests (sent and received)
    */
   static async getFriendRequests(): Promise<{

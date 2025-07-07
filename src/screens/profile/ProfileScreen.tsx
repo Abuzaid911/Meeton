@@ -54,6 +54,8 @@ interface ProfileScreenProps {
 
 type RouteParams = {
   userId?: string;
+  screen?: string;
+  params?: any;
 };
 
 interface UserStats {
@@ -65,7 +67,18 @@ interface UserStats {
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { signOut, user } = useAuth();
   const route = useRoute();
-  const { userId } = (route.params as RouteParams) || {};
+  const routeParams = route.params as RouteParams || {};
+  
+  // Handle nested navigation params (when coming from nested stack)
+  let { userId } = routeParams;
+  if (routeParams.screen && routeParams.params) {
+    userId = (routeParams.params as any)?.userId || userId;
+  }
+  
+  console.log('🔍 ProfileScreen route params:', routeParams);
+  console.log('🔍 Full route:', route);
+  console.log('🔍 Extracted userId:', userId);
+  console.log('🔍 Current user ID:', user?.id);
   
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [profileUser, setProfileUser] = useState(user);
@@ -97,6 +110,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const isOwnProfile = !userId || userId === user?.id;
 
   useEffect(() => {
+    console.log('🔍 ProfileScreen loaded with params:', { userId, currentUserId: user?.id, isOwnProfile });
     loadProfileData();
   }, [userId, user?.id]);
 
@@ -144,52 +158,84 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const loadOtherUserData = async () => {
     if (!userId || userId === user?.id) return;
 
+    console.log('📊 Loading data for other user:', userId);
+
     try {
-      // Load user stats
-      const userEvents = await APIService.getUserEvents(userId);
+      // Load user events and friends data in parallel
+      const [userEvents, otherUserFriends] = await Promise.all([
+        APIService.getUserEvents(userId),
+        APIService.getFriends() // This gets current user's friends for mutual friends calculation
+      ]);
+
+             // For now, we'll use a placeholder friends count since the API doesn't return it
+       // In a real app, you'd have a dedicated API endpoint for user stats
+       let otherUserFriendsCount = 0;
+
+      // Set real stats
       if (userEvents) {
         setOtherUserStats({
           eventsHosted: userEvents.hosting.length,
           eventsAttended: userEvents.attending.length,
-          friendsCount: 0 // Will be updated when we get friends count
+          friendsCount: otherUserFriendsCount
         });
+
+                 // Create real activities based on their events
+         const activities: Array<{
+           id: string;
+           type: string;
+           title: string;
+           time: Date;
+           icon: string;
+           color: string;
+         }> = [];
+        
+        // Add recent hosted events
+        const recentHostedEvents = userEvents.hosting
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .slice(0, 3);
+        
+        recentHostedEvents.forEach(event => {
+          activities.push({
+            id: `hosted-${event.id}`,
+            type: 'event_hosted',
+            title: `Hosted "${event.name}"`,
+            time: new Date(event.date),
+            icon: 'calendar',
+            color: Colors.primary
+          });
+        });
+
+        // Add recent attended events
+        const recentAttendedEvents = userEvents.attending
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .slice(0, 3);
+        
+        recentAttendedEvents.forEach(event => {
+          activities.push({
+            id: `attended-${event.id}`,
+            type: 'event_attended',
+            title: `Attended "${event.name}"`,
+            time: new Date(event.date),
+            icon: 'checkmark-circle',
+            color: Colors.systemGreen
+          });
+        });
+
+        // Sort all activities by date and take the most recent 5
+        const sortedActivities = activities
+          .sort((a, b) => b.time.getTime() - a.time.getTime())
+          .slice(0, 5);
+
+        setUserActivities(sortedActivities);
       }
 
-      // Load mutual friends
-      const friends = await APIService.getFriends();
-      if (friends && Array.isArray(friends)) {
+      // Calculate mutual friends
+      if (otherUserFriends && Array.isArray(otherUserFriends)) {
+        // In a real app, you'd have an API endpoint for mutual friends
         // For now, we'll show a subset as "mutual friends"
-        // In a real app, you'd have a specific API endpoint for mutual friends
-        const mutualFriendsSubset = friends.slice(0, 4);
+        const mutualFriendsSubset = otherUserFriends.slice(0, 4);
         setMutualFriends(mutualFriendsSubset);
       }
-
-      // Update friends count in stats
-      setOtherUserStats(prev => ({
-        ...prev,
-        friendsCount: mutualFriends.length * 3 // Estimate based on mutual friends
-      }));
-
-      // Load recent activities (mock for now since we don't have this API endpoint)
-      // In a real app, you'd have an API endpoint for user activities
-      setUserActivities([
-        {
-          id: '1',
-          type: 'event_hosted',
-          title: 'Hosted an event',
-          time: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-          icon: 'calendar',
-          color: Colors.primary
-        },
-        {
-          id: '2',
-          type: 'event_attended',
-          title: 'Attended an event',
-          time: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-          icon: 'checkmark-circle',
-          color: Colors.systemGreen
-        }
-      ]);
 
     } catch (error) {
       console.error('Error loading other user data:', error);
@@ -819,8 +865,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         {/* Stats Section - Show different stats for other users */}
         {!isOwnProfile && profileUser && (
           <View style={styles.statsSection}>
-            <View style={styles.statsContainer}>
-              <View style={styles.statCard}>
+            <View style={[styles.statsContainer, { justifyContent: 'space-around' }]}>
+              <View style={[styles.statCard, { width: (width - Spacing.lg * 2 - Spacing.md * 2) / 3 }]}>
                 <BlurView intensity={60} style={styles.statBlur}>
                   <View style={styles.statContent}>
                     <View style={[styles.statIconContainer, { backgroundColor: Colors.primary }]}>
@@ -834,7 +880,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 </BlurView>
               </View>
               
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { width: (width - Spacing.lg * 2 - Spacing.md * 2) / 3 }]}>
+                <BlurView intensity={60} style={styles.statBlur}>
+                  <View style={styles.statContent}>
+                    <View style={[styles.statIconContainer, { backgroundColor: Colors.secondary }]}>
+                      <Ionicons name="checkmark-circle" size={20} color={Colors.white} />
+                    </View>
+                    <Text style={styles.statValue}>
+                      {otherUserStats.eventsAttended}
+                    </Text>
+                    <Text style={styles.statLabel}>Events Attended</Text>
+                  </View>
+                </BlurView>
+              </View>
+
+              <View style={[styles.statCard, { width: (width - Spacing.lg * 2 - Spacing.md * 2) / 3 }]}>
                 <BlurView intensity={60} style={styles.statBlur}>
                   <View style={styles.statContent}>
                     <View style={[styles.statIconContainer, { backgroundColor: Colors.systemGreen }]}>
@@ -901,7 +961,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                           <TouchableOpacity 
                             key={friend.id} 
                             style={styles.mutualFriendItem}
-                            onPress={() => navigation.navigate('Profile', { userId: friend.id })}
+                            onPress={() => navigation.navigate('UserProfile', { userId: friend.id })}
                           >
                             <Image
                               source={{ 
@@ -1464,13 +1524,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.primary,
     fontWeight: FontWeight.medium,
-  },
-  noDataText: {
-    fontSize: FontSize.sm,
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingVertical: Spacing.md,
   },
 });
 

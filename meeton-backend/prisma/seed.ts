@@ -342,171 +342,42 @@ async function main() {
 
   console.log(`✅ Created ${attendees.length} attendee records`);
 
-  // Create sample notifications
-  console.log('🔔 Creating sample notifications...');
-  
-  const sampleNotifications = await Promise.all([
-    // Event invitation notifications
-    prisma.notification.create({
-      data: {
-        targetUserId: users[1].id, // Sarah
-        message: `${users[0].name} invited you to ${events[0].name}`,
-        sourceType: NotificationSourceType.PRIVATE_INVITATION,
-        link: `/events/${events[0].id}`,
-        isRead: false,
-        priority: 1,
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-      },
-    }),
-    
-    // Friend request notification
-    prisma.notification.create({
-      data: {
-        targetUserId: users[2].id, // Mike
-        message: `${users[3].name} wants to be your friend`,
-        sourceType: NotificationSourceType.FRIEND_REQUEST,
-        link: `/friends/requests`,
-        isRead: false,
-        priority: 1,
-        createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-      },
-    }),
-    
-    // RSVP notification
-    prisma.notification.create({
-      data: {
-        targetUserId: users[0].id, // Andre (event host)
-        message: `${users[1].name} is attending ${events[0].name}`,
-        sourceType: NotificationSourceType.ATTENDEE,
-        link: `/events/${events[0].id}/guests`,
-        isRead: true,
-        priority: 1,
-        readAt: new Date(Date.now() - 1 * 60 * 60 * 1000), // Read 1 hour ago
-        createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
-      },
-    }),
-    
-    // Event update notification
-    prisma.notification.create({
-      data: {
-        targetUserId: users[1].id, // Sarah
-        message: `${events[1].name} has been updated by the host`,
-        sourceType: NotificationSourceType.EVENT_UPDATE,
-        link: `/events/${events[1].id}`,
-        isRead: false,
-        priority: 2,
-        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
-      },
-    }),
-    
-    // Event reminder notification
-    prisma.notification.create({
-      data: {
-        targetUserId: users[2].id, // Mike
-        message: `${events[2].name} is starting in 1 hour`,
-        sourceType: NotificationSourceType.EVENT_REMINDER,
-        link: `/events/${events[2].id}`,
-        isRead: false,
-        priority: 3,
-        createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-      },
-    }),
-    
-    // Comment notification
-    prisma.notification.create({
-      data: {
-        targetUserId: users[3].id, // Emily
-        message: `${users[0].name} commented on ${events[3].name}`,
-        sourceType: NotificationSourceType.COMMENT,
-        link: `/events/${events[3].id}#comments`,
-        isRead: false,
-        priority: 1,
-        createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
-      },
-    }),
-    
-    // System notification
-    prisma.notification.create({
-      data: {
-        targetUserId: users[4].id, // David
-        message: 'Welcome to MeetOn! Complete your profile to get started',
-        sourceType: NotificationSourceType.SYSTEM,
-        link: `/profile/edit`,
-        isRead: true,
-        priority: 1,
-        readAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // Read 2 days ago
-        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-      },
-    }),
-    
-    // Multiple unread notifications for testing
-    prisma.notification.create({
-      data: {
-        targetUserId: users[1].id, // Sarah gets multiple notifications
-        message: `${users[4].name} is also attending ${events[1].name}`,
-        sourceType: NotificationSourceType.ATTENDEE,
-        link: `/events/${events[1].id}/guests`,
-        isRead: false,
-        priority: 1,
-        createdAt: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
-      },
-    }),
-    
-    prisma.notification.create({
-      data: {
-        targetUserId: users[1].id, // Sarah
-        message: `Your event ${events[1].name} has 5 new RSVPs`,
-        sourceType: NotificationSourceType.EVENT_UPDATE,
-        link: `/events/${events[1].id}/guests`,
-        isRead: false,
-        priority: 2,
-        createdAt: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
-      },
-    }),
-    
-    // Event cancelled notification
-    prisma.notification.create({
-      data: {
-        targetUserId: users[0].id, // Andre
-        message: `Unfortunately, ${events[4].name} has been cancelled`,
-        sourceType: NotificationSourceType.EVENT_CANCELLED,
-        link: `/events/${events[4].id}`,
-        isRead: false,
-        priority: 3,
-        createdAt: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago
-      },
-    }),
-  ]);
-
-  console.log(`✅ Created ${sampleNotifications.length} sample notifications`);
+  // Skip sample notifications for production
+  console.log('🔔 Skipping sample notifications (production mode)');
 
   // Create system settings
   console.log('⚙️ Creating system settings...');
   
-  await prisma.systemSettings.createMany({
-    data: [
-      {
-        key: 'app_version',
-        value: '1.0.0',
-        description: 'Current application version'
-      },
-      {
-        key: 'maintenance_mode',
-        value: 'false',
-        description: 'Enable/disable maintenance mode'
-      },
-      {
-        key: 'max_events_per_user',
-        value: '50',
-        description: 'Maximum events a user can create'
-      },
-      {
-        key: 'max_attendees_per_event',
-        value: '500',
-        description: 'Maximum attendees per event'
-      }
-    ]
-  });
+  const systemSettings = [
+    {
+      key: 'app_version',
+      value: '1.0.0',
+      description: 'Current application version'
+    },
+    {
+      key: 'maintenance_mode',
+      value: 'false',
+      description: 'Enable/disable maintenance mode'
+    },
+    {
+      key: 'max_events_per_user',
+      value: '50',
+      description: 'Maximum events a user can create'
+    },
+    {
+      key: 'max_attendees_per_event',
+      value: '500',
+      description: 'Maximum attendees per event'
+    }
+  ];
+
+  for (const setting of systemSettings) {
+    await prisma.systemSettings.upsert({
+      where: { key: setting.key },
+      update: { value: setting.value, description: setting.description },
+      create: setting,
+    });
+  }
 
   console.log('✅ Created system settings');
 
@@ -516,7 +387,7 @@ async function main() {
 - Users: ${users.length}
 - Events: ${events.length}
 - Attendees: ${attendees.length}
-- Notifications: ${sampleNotifications.length}
+- Notifications: 0 (production mode)
 - System Settings: 4
   `);
 }

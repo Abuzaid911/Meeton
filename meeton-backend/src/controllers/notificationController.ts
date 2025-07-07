@@ -23,6 +23,7 @@ class NotificationController {
     this.markAllNotificationsAsRead = this.markAllNotificationsAsRead.bind(this);
     this.deleteNotification = this.deleteNotification.bind(this);
     this.updateNotificationSettings = this.updateNotificationSettings.bind(this);
+
   }
 
   /**
@@ -268,6 +269,8 @@ class NotificationController {
       next(error);
     }
   }
+
+
 }
 
 // Export controller instance

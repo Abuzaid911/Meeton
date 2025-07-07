@@ -55,6 +55,12 @@ router.get(
 router.get('/', friendController.getFriends);
 
 /**
+ * Get friends for a specific user
+ * GET /api/friends/:userId
+ */
+router.get('/:userId', friendController.getUserFriends);
+
+/**
  * Get pending friend requests (sent and received)
  * GET /api/friends/requests
  */

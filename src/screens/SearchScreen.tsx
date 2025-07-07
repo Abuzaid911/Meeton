@@ -85,7 +85,9 @@ const SearchScreen: React.FC = () => {
   }, [searchQuery, selectedFilter, debouncedSearch]);
 
   const handleUserPress = (user: any) => {
-    (navigation as any).navigate('UserProfile', { userId: user.id });
+                (navigation as any).navigate('UserProfile', {
+        userId: user.id
+    });
   };
 
   const handleEventPress = (event: any) => {

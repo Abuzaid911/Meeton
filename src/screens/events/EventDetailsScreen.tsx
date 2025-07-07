@@ -544,7 +544,7 @@ const EventDetailsScreen: React.FC = () => {
     if (selectedUser) {
       setShowUserProfileModal(false);
       // Navigate to full profile screen
-      navigation.navigate('Profile', { userId: selectedUser.id });
+      navigation.navigate('UserProfile', { userId: selectedUser.id });
     }
   };
 
@@ -709,7 +709,7 @@ const EventDetailsScreen: React.FC = () => {
             <View style={{ width: 44 }} />
             
             <TouchableOpacity style={styles.optionsButton} onPress={handleOptionsPress}>
-              <BlurView intensity={60} tint="dark" style={styles.headerButtonBlur}>
+              <BlurView intensity={10} tint="dark" style={styles.headerButtonBlur}>
                 <Ionicons name="ellipsis-horizontal" size={24} color={Colors.white} />
               </BlurView>
             </TouchableOpacity>
@@ -1574,7 +1574,7 @@ const EventDetailsScreen: React.FC = () => {
                                 thumbColor={rsvpPlusOne ? Colors.white : 'rgba(255, 255, 255, 0.8)'}
                               />
                             </View>
-                            {rsvpPlusOne && (
+                            {/* {rsvpPlusOne && (
                               <View style={styles.rsvpCommentContainer}>
                                 <BlurView intensity={80} tint="dark" style={styles.rsvpCommentBlur}>
                                   <TextInput
@@ -1587,11 +1587,11 @@ const EventDetailsScreen: React.FC = () => {
                                   />
                                 </BlurView>
                               </View>
-                            )}
+                            )} */}
                           </View>
 
                           {/* Reminder Option */}
-                          <View style={styles.rsvpSection}>
+                          {/* <View style={styles.rsvpSection}>
                             <View style={styles.rsvpOptionRow}>
                               <Text style={styles.rsvpSectionTitle}>Remind me before event</Text>
                               <Switch
@@ -1601,7 +1601,7 @@ const EventDetailsScreen: React.FC = () => {
                                 thumbColor={rsvpRemindMe ? Colors.white : 'rgba(255, 255, 255, 0.8)'}
                               />
                             </View>
-                          </View>
+                          </View> */}
                         </>
                       )}
                       

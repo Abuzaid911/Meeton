@@ -37,15 +37,18 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       const result = await APIService.getNotifications({
         page: 1,
         limit: 100, // Get enough to count unread
-        unreadOnly: true,
+        unreadOnly: false, // Get all notifications, we'll filter locally
       });
 
       if (result) {
         const unreadNotifications = result.notifications.filter(n => !n.isRead);
         setUnreadCount(unreadNotifications.length);
+      } else {
+        setUnreadCount(0);
       }
     } catch (error) {
       console.error('Failed to fetch unread notification count:', error);
+      setUnreadCount(0);
     }
   };
 

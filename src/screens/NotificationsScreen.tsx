@@ -19,9 +19,11 @@ import { Colors, Spacing, FontSize, FontWeight, BorderRadius, Shadows } from '..
 import { Notification, NotificationSourceType } from '../types';
 import APIService from '../services/api';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const NotificationsScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { user } = useAuth();
   const { unreadCount, refreshUnreadCount, markAsRead: contextMarkAsRead, markAllAsRead: contextMarkAllAsRead } = useNotifications();
   const [activeTab, setActiveTab] = useState('all');
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -40,6 +42,8 @@ const NotificationsScreen: React.FC = () => {
   useEffect(() => {
     loadNotifications(true);
   }, [activeTab]);
+
+
 
   const loadNotifications = async (reset = false) => {
     try {
@@ -68,6 +72,10 @@ const NotificationsScreen: React.FC = () => {
         
         setHasMore(currentPage < result.pagination.totalPages);
         setPage(currentPage + 1);
+      } else {
+        if (reset) {
+          setNotifications([]);
+        }
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
@@ -534,7 +542,7 @@ const NotificationsScreen: React.FC = () => {
         {filteredNotifications.length > 0 && (
           <View style={styles.actionsContainer}>
             <GlassButton
-              title="Mark All Read"
+              title="Mark Read"
               icon="checkmark-done"
               onPress={markAllAsRead}
               variant="secondary"

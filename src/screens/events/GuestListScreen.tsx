@@ -76,7 +76,9 @@ const GuestListScreen: React.FC = () => {
   const handleViewProfile = () => {
     if (selectedUser) {
       setShowUserProfileModal(false);
-      navigation.navigate('Profile', { userId: selectedUser.id });
+      navigation.navigate('UserProfile', { 
+        userId: selectedUser.id
+      });
     }
   };
 
@@ -191,9 +193,9 @@ const GuestListScreen: React.FC = () => {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-            <BlurView intensity={60} tint="dark" style={styles.headerButtonBlur}>
-              <Ionicons name="close" size={24} color={Colors.white} />
-            </BlurView>
+            
+              <Ionicons name="arrow-back" size={24} color={Colors.white} />
+           
           </TouchableOpacity>
           
           <Text style={styles.headerTitle}>Guest List ({allGuests.length})</Text>
@@ -474,7 +476,11 @@ const GuestListScreen: React.FC = () => {
                   style={styles.optionsModalButton}
                   onPress={() => {
                     setShowGuestOptionsModal(false);
-                    if (selectedGuest) handleGuestAvatarPress(selectedGuest.user);
+                    if (selectedGuest) {
+                      navigation.navigate('UserProfile', { 
+                        userId: selectedGuest.user.id
+                      });
+                    }
                   }}
                 >
                   <Ionicons name="person-circle" size={20} color={Colors.white} />
@@ -537,14 +543,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 0,
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
     paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
     zIndex: 2,
   },
   backButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    marginTop: 12,
     overflow: 'hidden',
   },
   headerButtonBlur: {
@@ -566,7 +573,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   scrollContent: {
-    paddingTop: 50,
+    paddingTop: 30,
     paddingBottom: 100,
   },
   avatarGridContainer: {

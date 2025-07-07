@@ -44,4 +44,6 @@ router.delete('/:id', notificationController.deleteNotification);
 // Update notification preferences
 router.patch('/settings', notificationController.updateNotificationSettings);
 
+
+
 export default router; 

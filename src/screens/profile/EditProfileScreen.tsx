@@ -163,7 +163,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
       {/* Header */}
-      <BlurView intensity={80} style={styles.header}>
+      <BlurView intensity={0} style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity 
             style={styles.headerButton} 
@@ -253,12 +253,6 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
                 </BlurView>
                 <Text style={styles.helperText}>Contact support to change your email address</Text>
               </View>
-            </View>
-
-            {/* Profile Details Section */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Profile Details</Text>
-              
               <InputField
                 label="Bio"
                 value={formData.bio || ''}
@@ -267,7 +261,11 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
                 multiline={true}
                 maxLength={150}
               />
+            </View>
 
+            {/* Profile Details Section */}
+            {/* <View style={styles.sectionContainer}>
+              <Text style={styles.sectionTitle}>Profile Details</Text>
               <InputField
                 label="Location"
                 value={formData.location || ''}
@@ -275,7 +273,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
                 placeholder="City, State"
                 maxLength={100}
               />
-            </View>
+            </View> */}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -289,7 +287,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.black,
   },
   header: {
-    paddingTop: Platform.OS === 'ios' ? 44 : 20,
+    paddingTop: 0,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     backgroundColor: 'rgba(0, 0, 0, 0.95)',

@@ -103,7 +103,9 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
   };
 
   const handleUserPress = (userId: string) => {
-    navigation.navigate('UserProfile', { userId });
+    navigation.navigate('UserProfile', { 
+      userId
+    });
   };
 
   const tabs = [
