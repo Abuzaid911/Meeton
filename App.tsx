@@ -6,6 +6,7 @@ import * as Linking from 'expo-linking';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LocationProvider } from './src/contexts/LocationContext';
 import { RSVPProvider } from './src/contexts/RSVPContext';
+import { NotificationProvider } from './src/contexts/NotificationContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { notificationService } from './src/services/notificationService';
 
@@ -50,17 +51,21 @@ function AppWithLocation() {
   return (
     <>
       {user ? (
-        <RSVPProvider>
-          <LocationProvider currentUser={user}>
-            <BottomSheetModalProvider>
-              <AppNavigator />
-            </BottomSheetModalProvider>
-          </LocationProvider>
-        </RSVPProvider>
+        <NotificationProvider>
+          <RSVPProvider>
+            <LocationProvider currentUser={user}>
+              <BottomSheetModalProvider>
+                <AppNavigator />
+              </BottomSheetModalProvider>
+            </LocationProvider>
+          </RSVPProvider>
+        </NotificationProvider>
       ) : (
-        <BottomSheetModalProvider>
-          <AppNavigator />
-        </BottomSheetModalProvider>
+        <NotificationProvider>
+          <BottomSheetModalProvider>
+            <AppNavigator />
+          </BottomSheetModalProvider>
+        </NotificationProvider>
       )}
       <StatusBar style="auto" />
     </>

@@ -11,6 +11,7 @@ import {
 import { createEventSchema } from '../utils/validation';
 import { RSVP } from '@prisma/client';
 import { prisma } from '../config/database';
+import { NotificationService } from '../services/notificationService';
 
 /**
  * Event Controller - Controllers ONLY handle HTTP concerns
@@ -197,6 +198,40 @@ class EventController {
         analyticsService.trackRSVP(id, rsvp).catch(error => {
           console.error('Failed to track RSVP:', error);
         });
+      }
+      
+      // Send notification to event host (async, don't wait for completion)
+      if (rsvp === 'YES' || rsvp === 'MAYBE') {
+        const event = await prisma.event.findUnique({
+          where: { id },
+          select: { name: true, hostId: true }
+        });
+        
+        if (event && event.hostId !== req.user.id) {
+          const message = rsvp === 'YES' 
+            ? `${req.user.name || req.user.username} is attending ${event.name}`
+            : `${req.user.name || req.user.username} might attend ${event.name}`;
+            
+          NotificationService.sendNotificationToUser(
+            event.hostId,
+            {
+              title: 'New RSVP',
+              body: message,
+              data: {
+                type: 'rsvp',
+                eventId: id,
+                rsvp: rsvp
+              },
+              actionUrl: `/events/${id}/guests`
+            },
+            'ATTENDEE',
+            attendee.id
+          ).catch(error => {
+            console.error('❌ [BACKEND RSVP] Failed to send notification:', error);
+          });
+          
+          console.log('📲 [BACKEND RSVP] Notification queued for event host');
+        }
       }
       
       // Return updated event data with all attendees for frontend consistency

@@ -683,6 +683,7 @@ const EventDetailsScreen: React.FC = () => {
   const weather = getWeatherForEvent(event.id);
   const countdown = getCountdown(event.date);
   const currentUserRSVP = getUserRSVP(eventId);
+  const { going, maybe, notGoing } = getRSVPStats();
 
   return (
     <View style={styles.container}>
@@ -1274,7 +1275,7 @@ const EventDetailsScreen: React.FC = () => {
                 <View style={styles.sectionContent}>
                   <View style={styles.guestHeader}>
                     <Text style={styles.sectionTitle}>
-                      Guest List ({attendingGuests.length} going{maybeGuests.length > 0 ? `, ${maybeGuests.length} maybe` : ''})
+                      Guest List ({going} going{maybe > 0 ? `, ${maybe} maybe` : ''}{notGoing > 0 ? `, ${notGoing} not going` : ''})
                     </Text>
                     <TouchableOpacity onPress={() => navigation.navigate('GuestList', { eventId })}>
                       <Text style={styles.viewAllText}>View All</Text>

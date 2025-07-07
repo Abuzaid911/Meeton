@@ -4,10 +4,11 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Text } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import AuthNavigator from './AuthNavigator';
-import { Colors } from '../constants';
+import { Colors, FontSize, FontWeight } from '../constants';
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
@@ -27,6 +28,46 @@ import LocationSettingsScreen from '../screens/settings/LocationSettingsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
+
+// Custom Notification Tab Icon with Badge
+const NotificationTabIcon: React.FC<{ focused: boolean; color: string; size: number }> = ({ focused, color, size }) => {
+  const { unreadCount } = useNotifications();
+  const iconName = focused ? 'notifications' : 'notifications-outline';
+
+  return (
+    <View style={{ position: 'relative' }}>
+      <Ionicons name={iconName} size={size} color={color} />
+      {unreadCount > 0 && (
+        <View
+          style={{
+            position: 'absolute',
+            top: -5,
+            right: -8,
+            backgroundColor: Colors.systemRed,
+            borderRadius: 10,
+            minWidth: 20,
+            height: 20,
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderWidth: 2,
+            borderColor: Colors.black,
+          }}
+        >
+          <Text
+            style={{
+              color: Colors.white,
+              fontSize: FontSize.xs,
+              fontWeight: FontWeight.bold,
+              textAlign: 'center',
+            }}
+          >
+            {unreadCount > 99 ? '99+' : unreadCount.toString()}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+};
 
 // Stack Navigator for Home and Event-related screens
 function HomeStack() {
@@ -243,8 +284,7 @@ function BottomTabNavigator() {
               iconName = focused ? 'search' : 'search-outline';
               break;
             case 'Notifications':
-              iconName = focused ? 'notifications' : 'notifications-outline';
-              break;
+              return <NotificationTabIcon focused={focused} color={color} size={size} />;
             case 'Profile':
               iconName = focused ? 'person' : 'person-outline';
               break;

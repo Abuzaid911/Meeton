@@ -21,6 +21,7 @@ import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '..
 import { Event, User, RSVP } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import APIService from '../../services/api';
+import { getRSVPColor, getRSVPIcon, getRSVPDisplayText } from '../../utils/rsvpUtils';
 
 const { width, height } = Dimensions.get('window');
 
@@ -144,7 +145,8 @@ const GuestListScreen: React.FC = () => {
   const isHosting = event.hostId === user?.id;
   const attendingGuests = event.attendees?.filter(a => a.rsvp === RSVP.YES) || [];
   const maybeGuests = event.attendees?.filter(a => a.rsvp === RSVP.MAYBE) || [];
-  const allGuests = [...attendingGuests, ...maybeGuests];
+  const notGoingGuests = event.attendees?.filter(a => a.rsvp === RSVP.NO) || [];
+  const allGuests = [...attendingGuests, ...maybeGuests, ...notGoingGuests];
 
   // Create a circular arrangement for the avatar grid
   const getAvatarGridPositions = (count: number) => {
@@ -194,7 +196,7 @@ const GuestListScreen: React.FC = () => {
             </BlurView>
           </TouchableOpacity>
           
-          <Text style={styles.headerTitle}>Guest List</Text>
+          <Text style={styles.headerTitle}>Guest List ({allGuests.length})</Text>
           
           <View style={{ width: 44 }} />
         </View>
@@ -225,15 +227,44 @@ const GuestListScreen: React.FC = () => {
                     source={{ uri: guest.user?.image || 'https://via.placeholder.com/50' }} 
                     style={styles.avatarGridImage} 
                   />
-                  {guest.rsvp === RSVP.YES && (
-                    <View style={styles.confirmBadge}>
-                      <Ionicons name="checkmark" size={12} color={Colors.white} />
-                    </View>
-                  )}
+                  <View style={[styles.rsvpBadge, { backgroundColor: getRSVPColor(guest.rsvp) }]}>
+                    <Ionicons name={getRSVPIcon(guest.rsvp) as any} size={12} color={Colors.white} />
+                  </View>
                 </TouchableOpacity>
               );
             })}
           </View>
+
+          {/* RSVP Summary */}
+          {allGuests.length > 0 && (
+            <View style={styles.sectionContainer}>
+              <BlurView intensity={80} tint="dark" style={styles.sectionBlur}>
+                <View style={styles.sectionContent}>
+                  <Text style={styles.sectionTitle}>RSVP SUMMARY</Text>
+                  <View style={styles.summaryContainer}>
+                    <View style={styles.summaryItem}>
+                      <View style={[styles.summaryBadge, { backgroundColor: getRSVPColor(RSVP.YES) }]}>
+                        <Ionicons name={getRSVPIcon(RSVP.YES) as any} size={16} color={Colors.white} />
+                      </View>
+                      <Text style={styles.summaryText}>{attendingGuests.length} Going</Text>
+                    </View>
+                    <View style={styles.summaryItem}>
+                      <View style={[styles.summaryBadge, { backgroundColor: getRSVPColor(RSVP.MAYBE) }]}>
+                        <Ionicons name={getRSVPIcon(RSVP.MAYBE) as any} size={16} color={Colors.white} />
+                      </View>
+                      <Text style={styles.summaryText}>{maybeGuests.length} Maybe</Text>
+                    </View>
+                    <View style={styles.summaryItem}>
+                      <View style={[styles.summaryBadge, { backgroundColor: getRSVPColor(RSVP.NO) }]}>
+                        <Ionicons name={getRSVPIcon(RSVP.NO) as any} size={16} color={Colors.white} />
+                      </View>
+                      <Text style={styles.summaryText}>{notGoingGuests.length} Not Going</Text>
+                    </View>
+                  </View>
+                </View>
+              </BlurView>
+            </View>
+          )}
 
           {/* Host Section */}
           <View style={styles.sectionContainer}>
@@ -273,7 +304,9 @@ const GuestListScreen: React.FC = () => {
                          />
                          <View style={styles.guestDetails}>
                            <Text style={styles.guestName}>{guest.user?.name || 'Guest'}</Text>
-                           <Text style={styles.guestStatus}>Going to this event</Text>
+                           <Text style={[styles.guestStatus, { color: getRSVPColor(guest.rsvp) }]}>
+                             {getRSVPDisplayText(guest.rsvp)} • Confirmed attendance
+                           </Text>
                          </View>
                        </TouchableOpacity>
                       
@@ -311,7 +344,9 @@ const GuestListScreen: React.FC = () => {
                          />
                          <View style={styles.guestDetails}>
                            <Text style={styles.guestName}>{guest.user?.name || 'Guest'}</Text>
-                           <Text style={styles.guestStatus}>Might join this event</Text>
+                           <Text style={[styles.guestStatus, { color: getRSVPColor(guest.rsvp) }]}>
+                             {getRSVPDisplayText(guest.rsvp)} • Considering attendance
+                           </Text>
                          </View>
                        </TouchableOpacity>
                       
@@ -325,6 +360,46 @@ const GuestListScreen: React.FC = () => {
                       )}
                     </View>
                   ))}
+                </View>
+              </BlurView>
+            </View>
+          )}
+
+          {/* Not Going Section */}
+          {notGoingGuests.length > 0 && (
+            <View style={styles.sectionContainer}>
+              <BlurView intensity={80} tint="dark" style={styles.sectionBlur}>
+                <View style={styles.sectionContent}>
+                  <Text style={styles.sectionTitle}>NOT GOING ({notGoingGuests.length})</Text>
+                  
+                  {notGoingGuests.map((guest, index) => (
+                    <View key={guest.userId} style={styles.guestCard}>
+                      <TouchableOpacity 
+                        style={styles.guestInfo}
+                        onPress={() => handleGuestAvatarPress(guest.user)}
+                      >
+                        <Image 
+                          source={{ uri: guest.user?.image || 'https://via.placeholder.com/50' }} 
+                          style={styles.guestAvatar} 
+                        />
+                        <View style={styles.guestDetails}>
+                          <Text style={styles.guestName}>{guest.user?.name || 'Guest'}</Text>
+                          <Text style={[styles.guestStatus, { color: getRSVPColor(guest.rsvp) }]}>
+                            {getRSVPDisplayText(guest.rsvp)} • Cannot attend
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                     
+                     {isHosting && guest.userId !== user?.id && (
+                       <TouchableOpacity 
+                         style={styles.guestOptionsButton}
+                         onPress={() => handleGuestOptionsPress(guest)}
+                       >
+                         <Ionicons name="ellipsis-horizontal" size={20} color="rgba(255,255,255,0.6)" />
+                       </TouchableOpacity>
+                     )}
+                   </View>
+                 ))}
                 </View>
               </BlurView>
             </View>
@@ -518,6 +593,18 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     backgroundColor: Colors.systemGreen,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.white,
+  },
+  rsvpBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
@@ -762,11 +849,37 @@ const styles = StyleSheet.create({
      fontSize: FontSize.md,
      fontWeight: FontWeight.semibold,
    },
-   guestStatus: {
-     fontSize: FontSize.sm,
-     color: 'rgba(255, 255, 255, 0.8)',
-     fontStyle: 'italic',
-   },
+     guestStatus: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontStyle: 'italic',
+  },
+  summaryContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: Spacing.sm,
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: Spacing.xs,
+  },
+  summaryBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.xs,
+    borderWidth: 2,
+    borderColor: Colors.white,
+  },
+  summaryText: {
+    fontSize: FontSize.sm,
+    color: Colors.white,
+    fontWeight: FontWeight.medium,
+  },
 });
 
 export default GuestListScreen; 

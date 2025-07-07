@@ -14,11 +14,15 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { Colors, Spacing, FontSize, FontWeight, BorderRadius, Shadows } from '../constants';
 import { Notification, NotificationSourceType } from '../types';
 import APIService from '../services/api';
+import { useNotifications } from '../contexts/NotificationContext';
 
 const NotificationsScreen: React.FC = () => {
+  const navigation = useNavigation();
+  const { unreadCount, refreshUnreadCount, markAsRead: contextMarkAsRead, markAllAsRead: contextMarkAllAsRead } = useNotifications();
   const [activeTab, setActiveTab] = useState('all');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,16 +92,14 @@ const NotificationsScreen: React.FC = () => {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const success = await APIService.markNotificationAsRead(notificationId);
-      if (success) {
-        setNotifications(prev => 
-          prev.map(notification => 
-            notification.id === notificationId 
-              ? { ...notification, isRead: true, readAt: new Date() }
-              : notification
-          )
-        );
-      }
+      await contextMarkAsRead(notificationId);
+      setNotifications(prev => 
+        prev.map(notification => 
+          notification.id === notificationId 
+            ? { ...notification, isRead: true, readAt: new Date() }
+            : notification
+        )
+      );
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -105,19 +107,15 @@ const NotificationsScreen: React.FC = () => {
 
   const markAllAsRead = async () => {
     try {
-      const success = await APIService.markAllNotificationsAsRead();
-      if (success) {
-        setNotifications(prev => 
-          prev.map(notification => ({ 
-            ...notification, 
-            isRead: true, 
-            readAt: new Date() 
-          }))
-        );
-        Alert.alert('Success', 'All notifications marked as read.');
-      } else {
-        Alert.alert('Error', 'Failed to mark all notifications as read.');
-      }
+      await contextMarkAllAsRead();
+      setNotifications(prev => 
+        prev.map(notification => ({ 
+          ...notification, 
+          isRead: true, 
+          readAt: new Date() 
+        }))
+      );
+      Alert.alert('Success', 'All notifications marked as read.');
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
       Alert.alert('Error', 'Failed to mark all notifications as read.');
@@ -224,6 +222,71 @@ const NotificationsScreen: React.FC = () => {
     return new Date(date).toLocaleDateString();
   };
 
+  const handleNotificationPress = async (notification: Notification) => {
+    // Mark as read if not already read
+    if (!notification.isRead) {
+      await markAsRead(notification.id);
+    }
+
+    // Navigate based on notification type and link
+    try {
+      if (notification.link) {
+        const link = notification.link;
+        
+        // Parse the link and navigate accordingly
+        if (link.startsWith('/events/')) {
+          const eventId = link.split('/')[2];
+          if (link.includes('/guests')) {
+            (navigation as any).navigate('GuestList', { eventId });
+          } else if (link.includes('#comments')) {
+            (navigation as any).navigate('EventDetails', { eventId, scrollToComments: true });
+          } else {
+            (navigation as any).navigate('EventDetails', { eventId });
+          }
+        } else if (link.startsWith('/friends/requests')) {
+          (navigation as any).navigate('Profile', { 
+            screen: 'ProfileMain',
+            params: { showFriendRequests: true }
+          });
+        } else if (link.startsWith('/profile/edit')) {
+          (navigation as any).navigate('EditProfile');
+        } else {
+          console.log('Unhandled notification link:', link);
+        }
+      } else {
+        // Default navigation based on notification type
+        switch (notification.sourceType) {
+          case NotificationSourceType.ATTENDEE:
+          case NotificationSourceType.PRIVATE_INVITATION:
+          case NotificationSourceType.EVENT_UPDATE:
+          case NotificationSourceType.EVENT_CANCELLED:
+          case NotificationSourceType.EVENT_REMINDER:
+            // Try to extract event ID from message or use a default action
+            console.log('Event-related notification without specific link');
+            break;
+          case NotificationSourceType.FRIEND_REQUEST:
+            (navigation as any).navigate('Profile', { 
+              screen: 'ProfileMain',
+              params: { showFriendRequests: true }
+            });
+            break;
+          case NotificationSourceType.COMMENT:
+          case NotificationSourceType.MENTION:
+            console.log('Comment/mention notification without specific link');
+            break;
+          case NotificationSourceType.SYSTEM:
+            console.log('System notification');
+            break;
+          default:
+            console.log('Unknown notification type:', notification.sourceType);
+        }
+      }
+    } catch (error) {
+      console.error('Error navigating from notification:', error);
+      Alert.alert('Navigation Error', 'Unable to navigate to the requested screen.');
+    }
+  };
+
   const GlassTabButton: React.FC<{
     title: string;
     onPress: () => void;
@@ -264,16 +327,7 @@ const NotificationsScreen: React.FC = () => {
     <TouchableOpacity 
       style={styles.notificationItem} 
       activeOpacity={0.8}
-      onPress={() => {
-        if (!notification.isRead) {
-          markAsRead(notification.id);
-        }
-        // Handle navigation based on notification type and link
-        if (notification.link) {
-          // TODO: Navigate to appropriate screen based on link
-          console.log('Navigate to:', notification.link);
-        }
-      }}
+      onPress={() => handleNotificationPress(notification)}
       onLongPress={() => {
         Alert.alert(
           'Notification Options',

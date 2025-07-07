@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { friendService } from '../services/friendService';
 import { ValidationError, AuthenticationError, NotFoundError } from '../utils/errors';
+import { NotificationService } from '../services/notificationService';
 
 /**
  * Friend Controller
