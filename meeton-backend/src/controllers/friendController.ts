@@ -6,13 +6,13 @@ import {
   ValidationError,
   NotFoundError 
 } from '../utils/errors';
-import { NotificationService } from '../services/notificationService';
 
 interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     name: string;
     email: string;
+    username: string;
   };
 }
 
@@ -37,7 +37,7 @@ class FriendController {
 
   /**
    * Send friend request
-   * POST /api/friends/request/:userId
+   * POST /api/friends/request
    */
   async sendFriendRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -45,16 +45,16 @@ class FriendController {
         throw new AuthenticationError('Authentication required');
       }
 
-      const { userId } = req.params;
+      const { receiverId } = req.body;
       const senderId = req.user.id;
 
-      if (senderId === userId) {
+      if (senderId === receiverId) {
         throw new ValidationError('Cannot send friend request to yourself');
       }
 
       // Check if target user exists
       const targetUser = await prisma.user.findUnique({
-        where: { id: userId }
+        where: { id: receiverId }
       });
 
       if (!targetUser) {
@@ -62,11 +62,11 @@ class FriendController {
       }
 
       // Check if friendship already exists
-      const existingFriendship = await prisma.friendship.findFirst({
+      const existingFriendship = await prisma.friendRequest.findFirst({
         where: {
           OR: [
-            { senderId, receiverId: userId },
-            { senderId: userId, receiverId: senderId }
+            { senderId, receiverId },
+            { senderId: receiverId, receiverId: senderId }
           ]
         }
       });
@@ -76,10 +76,10 @@ class FriendController {
       }
 
       // Create friend request
-      const friendRequest = await prisma.friendship.create({
+      const friendRequest = await prisma.friendRequest.create({
         data: {
           senderId,
-          receiverId: userId,
+          receiverId,
           status: 'PENDING'
         },
         include: {
@@ -102,16 +102,6 @@ class FriendController {
         }
       });
 
-      // 🔔 NOTIFICATION: Send notification to the receiver
-      await NotificationService.createNotification({
-        targetUserId: userId,
-        sourceUserId: senderId,
-        sourceType: 'FRIEND_REQUEST',
-        message: `${req.user.name} sent you a friend request`,
-        link: `/friends/requests`,
-        priority: 2
-      });
-
       sendSuccess(res, friendRequest, 'Friend request sent successfully');
     } catch (error) {
       next(error);
@@ -120,7 +110,7 @@ class FriendController {
 
   /**
    * Respond to friend request (accept/decline)
-   * PATCH /api/friends/request/:requestId
+   * POST /api/friends/respond
    */
   async respondToFriendRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -128,15 +118,14 @@ class FriendController {
         throw new AuthenticationError('Authentication required');
       }
 
-      const { requestId } = req.params;
-      const { status } = req.body; // 'ACCEPTED' or 'DECLINED'
+      const { requestId, action } = req.body; // 'ACCEPTED' or 'DECLINED'
 
-      if (!['ACCEPTED', 'DECLINED'].includes(status)) {
-        throw new ValidationError('Invalid status. Must be ACCEPTED or DECLINED');
+      if (!['ACCEPTED', 'DECLINED'].includes(action)) {
+        throw new ValidationError('Invalid action. Must be ACCEPTED or DECLINED');
       }
 
       // Find the friend request
-      const friendRequest = await prisma.friendship.findUnique({
+      const friendRequest = await prisma.friendRequest.findUnique({
         where: { id: requestId },
         include: {
           sender: {
@@ -172,9 +161,9 @@ class FriendController {
       }
 
       // Update the friend request status
-      const updatedRequest = await prisma.friendship.update({
+      const updatedRequest = await prisma.friendRequest.update({
         where: { id: requestId },
-        data: { status },
+        data: { status: action },
         include: {
           sender: {
             select: {
@@ -195,19 +184,7 @@ class FriendController {
         }
       });
 
-      // 🔔 NOTIFICATION: Send notification to the sender about acceptance
-      if (status === 'ACCEPTED') {
-        await NotificationService.createNotification({
-          targetUserId: friendRequest.senderId,
-          sourceUserId: req.user.id,
-          sourceType: 'FRIEND_REQUEST_ACCEPTED',
-          message: `${req.user.name} accepted your friend request`,
-          link: `/friends`,
-          priority: 2
-        });
-      }
-
-      sendSuccess(res, updatedRequest, `Friend request ${status.toLowerCase()} successfully`);
+      sendSuccess(res, updatedRequest, `Friend request ${action.toLowerCase()} successfully`);
     } catch (error) {
       next(error);
     }
@@ -223,7 +200,7 @@ class FriendController {
         throw new AuthenticationError('Authentication required');
       }
 
-      const friends = await prisma.friendship.findMany({
+      const friends = await prisma.friendRequest.findMany({
         where: {
           OR: [
             { senderId: req.user.id, status: 'ACCEPTED' },
@@ -255,7 +232,7 @@ class FriendController {
       });
 
       // Map to get the friend (not the current user)
-      const friendsList = friends.map(friendship => {
+      const friendsList = friends.map((friendship: any) => {
         return friendship.senderId === req.user!.id ? friendship.receiver : friendship.sender;
       });
 
@@ -288,7 +265,7 @@ class FriendController {
       }
 
       // Get friends of the target user
-      const friends = await prisma.friendship.findMany({
+      const friends = await prisma.friendRequest.findMany({
         where: {
           OR: [
             { senderId: userId, status: 'ACCEPTED' },
@@ -320,7 +297,7 @@ class FriendController {
       });
 
       // Map to get the friend (not the target user)
-      const friendsList = friends.map(friendship => {
+      const friendsList = friends.map((friendship: any) => {
         return friendship.senderId === userId ? friendship.receiver : friendship.sender;
       });
 
@@ -342,7 +319,7 @@ class FriendController {
 
       const [sentRequests, receivedRequests] = await Promise.all([
         // Requests sent by the user
-        prisma.friendship.findMany({
+        prisma.friendRequest.findMany({
           where: {
             senderId: req.user.id,
             status: 'PENDING'
@@ -361,7 +338,7 @@ class FriendController {
           }
         }),
         // Requests received by the user
-        prisma.friendship.findMany({
+        prisma.friendRequest.findMany({
           where: {
             receiverId: req.user.id,
             status: 'PENDING'
@@ -382,8 +359,8 @@ class FriendController {
       ]);
 
       sendSuccess(res, {
-        sent: sentRequests.map(req => ({ ...req, user: req.receiver })),
-        received: receivedRequests.map(req => ({ ...req, user: req.sender }))
+        sent: sentRequests.map((req: any) => ({ ...req, user: req.receiver })),
+        received: receivedRequests.map((req: any) => ({ ...req, user: req.sender }))
       }, 'Friend requests retrieved successfully');
     } catch (error) {
       next(error);
@@ -401,7 +378,7 @@ class FriendController {
       }
 
       // Get users who are not already friends and not in pending requests
-      const existingConnections = await prisma.friendship.findMany({
+      const existingConnections = await prisma.friendRequest.findMany({
         where: {
           OR: [
             { senderId: req.user.id },
@@ -416,8 +393,8 @@ class FriendController {
 
       const excludeIds = [
         req.user.id,
-        ...existingConnections.map(conn => 
-          conn.senderId === req.user.id ? conn.receiverId : conn.senderId
+        ...existingConnections.map((conn: any) => 
+          conn.senderId === req.user!.id ? conn.receiverId : conn.senderId
         )
       ];
 
@@ -459,7 +436,7 @@ class FriendController {
         return;
       }
 
-      const friendship = await prisma.friendship.findFirst({
+      const friendship = await prisma.friendRequest.findFirst({
         where: {
           OR: [
             { senderId: req.user.id, receiverId: userId },
@@ -507,7 +484,7 @@ class FriendController {
 
       const { userId } = req.params;
 
-      const friendship = await prisma.friendship.findFirst({
+      const friendship = await prisma.friendRequest.findFirst({
         where: {
           OR: [
             { senderId: req.user.id, receiverId: userId, status: 'ACCEPTED' },
@@ -520,7 +497,7 @@ class FriendController {
         throw new NotFoundError('Friendship not found');
       }
 
-      await prisma.friendship.delete({
+      await prisma.friendRequest.delete({
         where: { id: friendship.id }
       });
 
@@ -542,7 +519,7 @@ class FriendController {
 
       const { userId } = req.params;
 
-      const friendRequest = await prisma.friendship.findFirst({
+      const friendRequest = await prisma.friendRequest.findFirst({
         where: {
           senderId: req.user.id,
           receiverId: userId,
@@ -554,7 +531,7 @@ class FriendController {
         throw new NotFoundError('Friend request not found');
       }
 
-      await prisma.friendship.delete({
+      await prisma.friendRequest.delete({
         where: { id: friendRequest.id }
       });
 
