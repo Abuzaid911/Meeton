@@ -102,6 +102,34 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
     }
   };
 
+  const handleCancelFriendRequest = async (userId: string, userName: string) => {
+    Alert.alert(
+      'Cancel Friend Request',
+      `Are you sure you want to cancel your friend request to ${userName}?`,
+      [
+        { text: 'Keep Request', style: 'cancel' },
+        {
+          text: 'Cancel Request',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const success = await APIService.cancelFriendRequest(userId);
+              if (success) {
+                Alert.alert('Success', 'Friend request cancelled');
+                loadFriendsData(); // Refresh the list
+              } else {
+                Alert.alert('Error', 'Failed to cancel friend request');
+              }
+            } catch (error) {
+              console.error('Error cancelling friend request:', error);
+              Alert.alert('Error', 'Failed to cancel friend request');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleUserPress = (userId: string) => {
     navigation.navigate('UserProfile', { 
       userId
@@ -147,7 +175,12 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
     >
       <BlurView intensity={60} style={styles.userCardBlur}>
         <View style={styles.userCardContent}>
-          <Image source={{ uri: user.image }} style={styles.userAvatar} />
+          <Image 
+            source={{ 
+              uri: user.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=667eea&color=fff&size=100`
+            }} 
+            style={styles.userAvatar} 
+          />
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{user.name}</Text>
             <Text style={styles.userUsername}>@{user.username}</Text>
@@ -192,9 +225,12 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
               </View>
             )}
             {type === 'sent' && (
-              <TouchableOpacity style={styles.sentButton}>
-                <BlurView intensity={80} style={styles.sentButtonBlur}>
-                  <Text style={styles.sentButtonText}>Pending</Text>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={() => handleCancelFriendRequest(user.id, user.name)}
+              >
+                <BlurView intensity={80} style={styles.cancelButtonBlur}>
+                  <Ionicons name="close" size={16} color={Colors.white} />
                 </BlurView>
               </TouchableOpacity>
             )}
@@ -247,7 +283,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
       <View style={styles.contentContainer}>
         {data.map((item: any, index: number) => {
           const user = activeTab === 'sent' ? item.receiver : (activeTab === 'requests' ? item.sender : item);
-          const requestId = activeTab === 'requests' ? item.id : undefined;
+          const requestId = (activeTab === 'requests' || activeTab === 'sent') ? item.id : undefined;
           
           return (
             <UserCard 
@@ -552,6 +588,18 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
     color: 'rgba(255, 255, 255, 0.6)',
+  },
+  cancelButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  cancelButtonBlur: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 59, 48, 0.2)',
   },
 });
 
