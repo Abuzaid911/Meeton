@@ -140,7 +140,7 @@ export class WeatherService {
         firstTemp: (data as any).list?.[0]?.main?.temp 
       });
       
-      return this.parseForecastWeatherData(data);
+      return this.parseGoogleForecastWeatherData(data);
     } catch (error) {
       console.error('🌤️ Error fetching weather forecast:', error);
       throw error;
@@ -181,9 +181,9 @@ export class WeatherService {
         // Event is today or in the past, get current weather
         console.log(`🌤️ Event is today or past, fetching current weather`);
         weatherData = await this.getCurrentWeather(event.lat, event.lng);
-      } else if (daysDifference <= 5) {
-        // Event is within 5 days, get forecast
-        console.log(`🌤️ Event is within 5 days, fetching forecast`);
+      } else if (daysDifference <= 10) {
+        // Event is within 10 days, get forecast (Google provides 10-day forecast)
+        console.log(`🌤️ Event is within 10 days, fetching forecast`);
         weatherData = await this.getWeatherForecast(event.lat, event.lng);
       } else {
         // Event is too far in the future, use seasonal data (not mock)
@@ -306,7 +306,57 @@ export class WeatherService {
   }
 
   /**
-   * Parse forecast weather API response
+   * Parse Google Weather API forecast response
+   */
+  private parseGoogleForecastWeatherData(data: any): WeatherData {
+    try {
+      const dailyForecasts = data.dailyForecasts || [];
+      if (dailyForecasts.length === 0) {
+        throw new Error('No forecast data available');
+      }
+
+      // Use the first day (today/tomorrow) for current forecast
+      const today = dailyForecasts[0];
+      const temperature = today.temperature?.high?.degrees || today.temperature?.low?.degrees || 20;
+      const weatherCondition = today.weatherCondition || {};
+
+      const condition = this.mapGoogleWeatherCondition(weatherCondition.type);
+      const description = weatherCondition.description?.text || 'Clear';
+
+      // Parse hourly forecast if available
+      const hourlyForecast: HourlyForecast[] = [];
+      if (data.hourlyForecasts) {
+        hourlyForecast.push(...data.hourlyForecasts.slice(0, 24).map((hour: any) => ({
+          time: hour.dateTime || new Date().toISOString(),
+          temperature: Math.round(hour.temperature?.degrees || temperature),
+          condition: this.mapGoogleWeatherCondition(hour.weatherCondition?.type),
+          icon: this.getWeatherIconFromGoogle(hour.weatherCondition?.iconBaseUri),
+          precipitationChance: Math.round((hour.precipitation?.probability?.percent || 0)),
+        })));
+      }
+
+      return {
+        temperature: Math.round(temperature),
+        condition,
+        description,
+        humidity: today.relativeHumidity || 50,
+        windSpeed: today.wind?.speed?.value || 0,
+        windDirection: today.wind?.direction?.degrees || 0,
+        visibility: today.visibility?.distance || 10,
+        uvIndex: today.uvIndex || 0,
+        pressure: today.airPressure?.meanSeaLevelMillibars || 1013,
+        feelsLike: Math.round(today.feelsLikeTemperature?.degrees || temperature),
+        icon: this.getWeatherIconFromGoogle(weatherCondition.iconBaseUri),
+        hourlyForecast,
+      };
+    } catch (error) {
+      console.error('🌤️ Error parsing Google forecast weather data:', error);
+      throw new Error('Failed to parse Google forecast data');
+    }
+  }
+
+  /**
+   * Parse legacy forecast weather API response (OpenWeather format)
    */
   private parseForecastWeatherData(data: any): WeatherData {
     try {

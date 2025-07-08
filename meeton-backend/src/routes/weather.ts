@@ -25,9 +25,9 @@ router.get('/forecast', weatherController.getWeatherForecast);
 
 /**
  * Get weather for specific event
- * GET /api/weather/events/:eventId
+ * GET /api/weather/event/:eventId
  */
-router.get('/events/:eventId', weatherController.getEventWeather);
+router.get('/event/:eventId', weatherController.getEventWeather);
 
 /**
  * Get weather alerts for coordinates
