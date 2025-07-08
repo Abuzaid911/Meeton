@@ -34,6 +34,7 @@ const VoiceEventCreator: React.FC<VoiceEventCreatorProps> = ({
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcriptionText, setTranscriptionText] = useState<string>('');
+  const [lastError, setLastError] = useState<string>('');
 
   // Animation refs
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -42,6 +43,29 @@ const VoiceEventCreator: React.FC<VoiceEventCreatorProps> = ({
 
   // Check if voice features are enabled and configured
   const isVoiceEnabled = ENV.ENABLE_VOICE_EVENTS && VoiceEventService.isConfigured();
+
+  // Initialize audio session on component mount
+  useEffect(() => {
+    const initializeAudioSession = async () => {
+      try {
+        console.log('🎤 Initializing audio session...');
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+          staysActiveInBackground: false, // Start with false, enable when recording
+        });
+        console.log('✅ Audio session initialized successfully');
+      } catch (error) {
+        console.error('❌ Failed to initialize audio session:', error);
+      }
+    };
+
+    if (isVoiceEnabled) {
+      initializeAudioSession();
+    }
+  }, [isVoiceEnabled]);
 
   useEffect(() => {
     if (recordingState.isRecording) {
@@ -97,6 +121,16 @@ const VoiceEventCreator: React.FC<VoiceEventCreatorProps> = ({
     };
   }, [recordingState.isRecording, pulseAnim, waveAnim]);
 
+  // Cleanup recording on component unmount
+  useEffect(() => {
+    return () => {
+      if (recording) {
+        console.log('🧹 Cleaning up recording on unmount...');
+        recording.stopAndUnloadAsync().catch(console.error);
+      }
+    };
+  }, [recording]);
+
   const requestPermissions = async (): Promise<boolean> => {
     try {
       const { status } = await Audio.requestPermissionsAsync();
@@ -120,20 +154,30 @@ const VoiceEventCreator: React.FC<VoiceEventCreatorProps> = ({
 
   const startRecording = async () => {
     try {
+      // Clear any previous errors
+      setLastError('');
+      
       // Check permissions first
       const hasPermission = await requestPermissions();
       if (!hasPermission) return;
 
-      // Configure audio session
+      console.log('🎤 Configuring audio session...');
+      
+      // Configure audio session with proper settings for foreground recording
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
         shouldDuckAndroid: true,
         playThroughEarpieceAndroid: false,
-        staysActiveInBackground: false,
+        staysActiveInBackground: true, // Keep active for recording
       });
 
-      // Create and start recording
+      // Small delay to ensure audio session is ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      console.log('🎤 Creating recording instance...');
+
+      // Use the high quality preset which works reliably
       const { recording: newRecording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY,
         undefined,
@@ -152,7 +196,21 @@ const VoiceEventCreator: React.FC<VoiceEventCreatorProps> = ({
       console.log('🎤 Voice recording started');
     } catch (error) {
       console.error('Failed to start recording:', error);
-      onError?.('Failed to start recording. Please try again.');
+      
+      // Check for specific background audio session error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      let userFriendlyError: string;
+      if (errorMessage.includes('background') || errorMessage.includes('audio session could not be activated')) {
+        userFriendlyError = 'Audio session error. Please ensure the app is in the foreground and try again.';
+      } else if (errorMessage.includes('permission')) {
+        userFriendlyError = 'Microphone permission denied. Please enable microphone access in Settings.';
+      } else {
+        userFriendlyError = 'Failed to start recording. Please try again.';
+      }
+      
+      setLastError(userFriendlyError);
+      onError?.(userFriendlyError);
     }
   };
 
@@ -224,6 +282,38 @@ const VoiceEventCreator: React.FC<VoiceEventCreatorProps> = ({
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const resetAudioSession = async () => {
+    try {
+      console.log('🔄 Resetting audio session...');
+      setLastError('');
+      
+      // Reset audio mode
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: false,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
+        staysActiveInBackground: false,
+      });
+      
+      // Wait a moment
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Reinitialize for recording
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+        staysActiveInBackground: false,
+      });
+      
+      console.log('✅ Audio session reset successfully');
+    } catch (error) {
+      console.error('❌ Failed to reset audio session:', error);
+    }
   };
 
   const showExampleCommands = () => {
@@ -345,8 +435,27 @@ const VoiceEventCreator: React.FC<VoiceEventCreatorProps> = ({
                 : "Tap to start voice command"}
           </Text>
 
+          {/* Error Recovery */}
+          {lastError && lastError.includes('Audio session') && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{lastError}</Text>
+              <TouchableOpacity 
+                style={styles.retryButton}
+                onPress={resetAudioSession}
+                activeOpacity={0.8}
+              >
+                <BlurView intensity={80} style={styles.retryButtonBlur}>
+                  <View style={styles.retryButtonContent}>
+                    <Ionicons name="refresh" size={16} color={Colors.white} />
+                    <Text style={styles.retryButtonText}>Reset Audio Session</Text>
+                  </View>
+                </BlurView>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Hint Text */}
-          {!recordingState.isRecording && !isProcessing && !transcriptionText && (
+          {!recordingState.isRecording && !isProcessing && !transcriptionText && !lastError && (
             <View style={styles.hintContainer}>
               <Text style={styles.hintText}>
                 💡 Try saying: "Create a birthday party tomorrow at 7 PM"
@@ -524,6 +633,42 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.3)',
     marginTop: Spacing.xs,
     textAlign: 'center',
+  },
+  errorContainer: {
+    alignItems: 'center',
+    marginVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+  },
+  errorText: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 100, 100, 0.9)',
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+    lineHeight: 20,
+  },
+  retryButton: {
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+  },
+  retryButtonBlur: {
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+  },
+  retryButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  retryButtonText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    color: Colors.white,
+    marginLeft: Spacing.xs,
   },
 });
 
