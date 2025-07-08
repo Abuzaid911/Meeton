@@ -653,6 +653,16 @@ export class APIService {
     sortOrder?: 'asc' | 'desc';
   } = {}): Promise<Event[] | null> {
     try {
+      console.log('🔍 [FRONTEND] getEvents called with options:', options);
+      
+      const isAuth = this.isAuthenticated();
+      const currentUser = await this.getCurrentUser();
+      console.log('🔍 [FRONTEND] Authentication state:', { 
+        isAuthenticated: isAuth, 
+        hasCurrentUser: !!currentUser,
+        userId: currentUser?.id 
+      });
+
       const queryParams = new URLSearchParams();
       
       Object.entries(options).forEach(([key, value]) => {
@@ -664,13 +674,24 @@ export class APIService {
       const queryString = queryParams.toString();
       const endpoint = queryString ? `/events?${queryString}` : '/events';
 
+      console.log('🔍 [FRONTEND] Making request to:', endpoint, 'with auth:', isAuth);
+
       const response = await this.makeRequest<Event[]>(endpoint, {
         requireAuth: this.isAuthenticated(), // Use auth if user is logged in for proper privacy filtering
       });
 
       if (response.success && response.data) {
+        console.log('🔍 [FRONTEND] Events received:', {
+          total: response.data.length,
+          eventIds: response.data.map(e => e.id),
+          hostIds: response.data.map(e => e.hostId),
+          privacyLevels: response.data.map(e => e.privacyLevel),
+          userIsHostOf: response.data.filter(e => e.hostId === currentUser?.id).length
+        });
         return response.data;
       }
+      
+      console.log('🔍 [FRONTEND] No events received or request failed');
       return null;
     } catch (error) {
       console.error('Failed to get events:', error);

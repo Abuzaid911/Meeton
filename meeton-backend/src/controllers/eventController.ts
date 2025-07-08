@@ -61,6 +61,10 @@ class EventController {
    */
   async getEvents(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      console.log('🔍 [BACKEND] getEvents controller called');
+      console.log('🔍 [BACKEND] Request user:', req.user ? { id: req.user.id, email: req.user.email } : 'No user');
+      console.log('🔍 [BACKEND] Query params:', req.query);
+
       const {
         page = '1',
         limit = '20',
@@ -85,20 +89,25 @@ class EventController {
         attendeeId: attendeeId as string,
         startDate: startDate ? new Date(startDate as string) : undefined,
         endDate: endDate ? new Date(endDate as string) : undefined,
-        sortBy: sortBy as any,
-        sortOrder: sortOrder as any,
+        sortBy: sortBy as 'date' | 'created' | 'name' | 'popularity',
+        sortOrder: sortOrder as 'asc' | 'desc',
       };
 
-      // Pass userId for privacy filtering (if authenticated)
+      console.log('🔍 [BACKEND] Processed options:', options);
+
       const result = await eventService.getEvents(options, req.user?.id);
       
-      sendSuccess(res, result.events, 'Events retrieved successfully', 200, {
-        page: result.page,
-        limit: options.limit,
+      console.log('🔍 [BACKEND] Events service returned:', {
         total: result.total,
-        totalPages: result.totalPages,
+        eventCount: result.events.length,
+        userRequestedId: req.user?.id,
+        eventsWithHostIds: result.events.map(e => ({ id: e.id, hostId: e.hostId, privacy: e.privacyLevel })),
+        userIsHostOfCount: result.events.filter(e => e.hostId === req.user?.id).length
       });
+
+      sendSuccess(res, result, 'Events retrieved successfully');
     } catch (error) {
+      console.error('🔍 [BACKEND] getEvents error:', error);
       next(error);
     }
   }
