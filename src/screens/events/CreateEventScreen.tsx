@@ -26,8 +26,11 @@ import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '..
 import APIService from '../../services/api';
 import { useNavigation } from '@react-navigation/native';
 import ImageUploader from '../../components/common/ImageUploader';
+import VoiceEventCreator from '../../components/common/VoiceEventCreator';
 import { ImageType } from '../../services/imageService';
 import { locationSearchService, LocationSuggestion as LocationSearchSuggestion } from '../../services/locationSearchService';
+import { VoiceEventData } from '../../types';
+import { ENV } from '../../config/env';
 
 const { width, height } = Dimensions.get('window');
 
@@ -368,6 +371,58 @@ const CreateEventScreen: React.FC = () => {
 
   const handleImageRemove = () => {
     updateForm('image', null);
+  };
+
+  const handleVoiceEventData = (voiceData: VoiceEventData) => {
+    console.log('🎙️ Processing voice event data:', voiceData);
+    
+    // Map voice data to form fields
+    const mappings: Array<[keyof EventForm, keyof VoiceEventData]> = [
+      ['name', 'name'],
+      ['description', 'description'],
+      ['date', 'date'],
+      ['time', 'time'],
+      ['location', 'location'],
+      ['type', 'type'],
+    ];
+
+    mappings.forEach(([formField, voiceField]) => {
+      if (voiceData[voiceField]) {
+        updateForm(formField, voiceData[voiceField] as string);
+      }
+    });
+
+    // Set location display name if location was provided
+    if (voiceData.location) {
+      updateForm('locationDisplayName', voiceData.location);
+    }
+
+    // Show success message and proceed to next step if complete
+    Alert.alert(
+      '🎉 Voice Command Processed!',
+      'Event details have been filled in from your voice command. Please review and adjust as needed.',
+      [
+        { 
+          text: 'Review Details', 
+          style: 'default',
+          onPress: () => {
+            // If the voice command included date, time, and location, advance to step 2
+            if (voiceData.date && voiceData.time && voiceData.location) {
+              setTimeout(() => setCurrentStep(2), 1000); // Delay to let user see the filled fields
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleVoiceError = (error: string) => {
+    console.error('Voice processing error:', error);
+    Alert.alert(
+      '❌ Voice Command Failed',
+      error + '\n\nPlease try speaking more clearly or check your internet connection.',
+      [{ text: 'Try Again', style: 'default' }]
+    );
   };
 
   // Real-world location search using Google Places API
@@ -1025,6 +1080,14 @@ const CreateEventScreen: React.FC = () => {
       </View>
 
       <View style={styles.formSection}>
+        {/* Voice Event Creator */}
+        {ENV.ENABLE_VOICE_EVENTS && (
+          <VoiceEventCreator
+            onEventDataParsed={handleVoiceEventData}
+            onError={handleVoiceError}
+          />
+        )}
+
         <InputField
           label="Event Name"
           value={form.name}

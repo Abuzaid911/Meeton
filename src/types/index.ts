@@ -366,6 +366,39 @@ export interface LocationSettingsProps {
   onSettingsChange: (settings: LocationShareSettings) => void;
 }
 
+// ============================================================================
+// Voice Event Types
+// ============================================================================
+
+export interface VoiceEventData {
+  name?: string;
+  description?: string;
+  date?: string;
+  time?: string;
+  location?: string;
+  type?: string;
+  duration?: number;
+}
+
+export interface VoiceTranscriptionResult {
+  text: string;
+  confidence?: number;
+  language?: string;
+}
+
+export interface VoiceRecordingState {
+  isRecording: boolean;
+  isPaused: boolean;
+  duration: number;
+  uri?: string;
+}
+
+export interface VoiceEventCreatorProps {
+  onEventDataParsed: (eventData: VoiceEventData) => void;
+  onError?: (error: string) => void;
+  onTranscriptionReceived?: (transcription: VoiceTranscriptionResult) => void;
+}
+
 // Navigation types update
 export interface NavigationParamList {
   Home: undefined;
