@@ -205,6 +205,32 @@ const EditEventScreen: React.FC = () => {
     invitedFriends: [],
   });
 
+  // Simple Step Indicator Component to match CreateEventScreen
+  const StepIndicator: React.FC = () => (
+    <View style={styles.stepIndicator}>
+      {[1, 2, 3, 4].map((step) => (
+        <View key={step} style={styles.stepIndicatorContainer}>
+          <View style={[
+            styles.stepDot,
+            currentStep >= step && styles.stepDotActive
+          ]}>
+            {currentStep > step ? (
+              <Ionicons name="checkmark" size={12} color={Colors.white} />
+            ) : (
+              <Text style={styles.stepNumber}>{step}</Text>
+            )}
+          </View>
+          {step < 4 && (
+            <View style={[
+              styles.stepLine,
+              currentStep > step && styles.stepLineActive
+            ]} />
+          )}
+        </View>
+      ))}
+    </View>
+  );
+
   useEffect(() => {
     loadEventData();
   }, [eventId]);
@@ -327,7 +353,10 @@ const EditEventScreen: React.FC = () => {
         return;
       }
 
-      // Update the event
+      // Ensure the color is in valid hex format
+      const validHexColor = form.color.startsWith('#') ? form.color : `#${form.color}`;
+
+      // Update the event with all required fields
       const updatedEvent = await APIService.updateEvent(eventId, {
         name: form.name,
         description: form.description || form.name,
@@ -336,12 +365,12 @@ const EditEventScreen: React.FC = () => {
         location: form.locationDisplayName || form.location,
         lat: form.coordinates?.latitude,
         lng: form.coordinates?.longitude,
-        category: form.type || 'Other',
+        category: form.type || 'other',
         privacyLevel: form.privacy === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE',
         headerType: form.backgroundType === 'image' ? 'image' : 'color',
-        headerColor: form.color,
+        headerColor: validHexColor,
         headerImageUrl: form.image || undefined,
-
+        duration: 180, // Default 3 hours (180 minutes) - required by backend
         tags: form.type ? [form.type] : [],
       });
 
@@ -360,8 +389,17 @@ const EditEventScreen: React.FC = () => {
       
     } catch (error) {
       setIsUpdating(false);
-      Alert.alert('Error', 'Failed to update event. Please try again.');
       console.error('Error updating event:', error);
+      
+      // More detailed error handling
+      if (error instanceof Error) {
+        const errorMessage = error.message.includes('400') ? 
+          'Invalid event data. Please check all fields and try again.' : 
+          'Failed to update event. Please try again.';
+        Alert.alert('Error', errorMessage);
+      } else {
+        Alert.alert('Error', 'Failed to update event. Please try again.');
+      }
     }
   };
 
@@ -492,67 +530,62 @@ const EditEventScreen: React.FC = () => {
     );
   }
 
-  // Include the same CustomDatePicker, CustomTimePicker, LocationInput, MapPickerModal, and other components from CreateEventScreen
-  // ... (These would be identical to the CreateEventScreen implementations)
-
   // Render methods for each step (similar to CreateEventScreen but with "Update" instead of "Create")
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Edit Event Details</Text>
-      <Text style={styles.stepDescription}>Update your event information</Text>
-      
-      <InputField
-        label="Event Name"
-        value={form.name}
-        onChangeText={(text) => updateForm('name', text)}
-        placeholder="What's the event called?"
-        icon="text"
-      />
-      
-      <InputField
-        label="Description"
-        value={form.description}
-        onChangeText={(text) => updateForm('description', text)}
-        placeholder="Tell people about your event..."
-        multiline
-        icon="document-text"
-      />
-      
-      <View style={styles.inputContainer}>
-        <View style={styles.inputLabelContainer}>
-          <Ionicons name="apps" size={16} color="rgba(255, 255, 255, 0.8)" />
-          <Text style={styles.inputLabel}>Event Type</Text>
-        </View>
-        <View style={styles.eventTypeGrid}>
-          {eventTypes.map((type) => (
-            <TouchableOpacity
-              key={type.id}
-              style={[
-                styles.eventTypeButton,
-                form.type === type.id && styles.eventTypeButtonActive
-              ]}
-              onPress={() => updateForm('type', type.id)}
-            >
-              <BlurView intensity={80} style={styles.eventTypeBlur}>
-                <View style={[
-                  styles.eventTypeContent,
-                  form.type === type.id && { backgroundColor: type.color }
-                ]}>
-                  <Ionicons 
-                    name={type.icon as any} 
-                    size={24} 
-                    color={form.type === type.id ? Colors.white : type.color} 
-                  />
-                  <Text style={[
-                    styles.eventTypeText,
-                    form.type === type.id && styles.eventTypeTextActive
+      <View style={styles.stepHeader}>
+        <Text style={styles.stepTitle}>Edit Event Details</Text>
+        <Text style={styles.stepSubtitle}>Update your event information</Text>
+      </View>
+
+      <View style={styles.formSection}>
+        <InputField
+          label="Event Name"
+          value={form.name}
+          onChangeText={(text) => updateForm('name', text)}
+          placeholder="What's the event called?"
+          icon="text"
+        />
+        
+        <InputField
+          label="Description"
+          value={form.description}
+          onChangeText={(text) => updateForm('description', text)}
+          placeholder="Tell people about your event..."
+          multiline
+          icon="document-text"
+        />
+        
+        {/* Event Type Selection */}
+        <View style={styles.inputContainer}>
+          <View style={styles.inputLabelContainer}>
+            <Ionicons name="grid" size={16} color="rgba(255, 255, 255, 0.8)" />
+            <Text style={styles.inputLabel}>Event Type</Text>
+          </View>
+          <View style={styles.typeGrid}>
+            {eventTypes.map((type) => (
+              <TouchableOpacity
+                key={type.id}
+                style={[
+                  styles.typeItem,
+                  form.type === type.id && styles.typeItemSelected
+                ]}
+                onPress={() => updateForm('type', type.id)}
+              >
+                <BlurView intensity={80} style={styles.typeBlur}>
+                  <View style={[
+                    styles.typeContent,
+                    form.type === type.id && { backgroundColor: 'rgba(255, 255, 255, 0.2)' }
                   ]}>
-                    {type.name}
-                  </Text>
-                </View>
-              </BlurView>
-            </TouchableOpacity>
-          ))}
+                    <View style={[styles.typeIcon, { backgroundColor: type.color }]}>
+                      <Ionicons name={type.icon as any} size={18} color={Colors.white} />
+                    </View>
+                    <Text style={styles.typeName}>{type.name}</Text>
+                  </View>
+                </BlurView>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </View>
     </View>
@@ -560,102 +593,158 @@ const EditEventScreen: React.FC = () => {
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>When & Where</Text>
-      <Text style={styles.stepDescription}>Set the date, time, and location</Text>
+      <View style={styles.stepHeader}>
+        <Text style={styles.stepTitle}>When & Where</Text>
+        <Text style={styles.stepSubtitle}>Set the time and place</Text>
+      </View>
       
-      <DateTimePicker
-        label="Date"
-        value={form.date ? new Date(form.date).toLocaleDateString() : ''}
-        onPress={() => setShowDatePicker(true)}
-        placeholder="Select date"
-        icon="calendar"
-      />
-      
-      <DateTimePicker
-        label="Time"
-        value={form.time}
-        onPress={() => setShowTimePicker(true)}
-        placeholder="Select time"
-        icon="time"
-      />
-      
-      {/* Location Input Component would go here */}
-      <InputField
-        label="Location"
-        value={locationQuery}
-        onChangeText={handleLocationInputChange}
-        placeholder="Where is your event?"
-        icon="location"
-      />
+      <View style={styles.formSection}>
+        <DateTimePicker
+          label="Date"
+          value={form.date ? new Date(form.date).toLocaleDateString() : ''}
+          onPress={() => setShowDatePicker(true)}
+          placeholder="Select date"
+          icon="calendar"
+        />
+        
+        <DateTimePicker
+          label="Time"
+          value={form.time}
+          onPress={() => setShowTimePicker(true)}
+          placeholder="Select time"
+          icon="time"
+        />
+        
+        <InputField
+          label="Location"
+          value={locationQuery}
+          onChangeText={handleLocationInputChange}
+          placeholder="Where is your event?"
+          icon="location"
+        />
+      </View>
     </View>
   );
 
   const renderStep3 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Customize</Text>
-      <Text style={styles.stepDescription}>Make your event stand out</Text>
-      
-      <View style={styles.inputContainer}>
-        <View style={styles.inputLabelContainer}>
-          <Ionicons name="image" size={16} color="rgba(255, 255, 255, 0.8)" />
-          <Text style={styles.inputLabel}>Event Image</Text>
-        </View>
-        <ImageUploader
-          onImageUpload={handleImageUpload}
-          onImageRemove={handleImageRemove}
-          currentImage={form.image}
-          imageType={ImageType.EVENT_HEADER}
-        />
+      <View style={styles.stepHeader}>
+        <Text style={styles.stepTitle}>Customize</Text>
+        <Text style={styles.stepSubtitle}>Make your event stand out</Text>
       </View>
       
-      <View style={styles.inputContainer}>
-        <View style={styles.inputLabelContainer}>
-          <Ionicons name="color-palette" size={16} color="rgba(255, 255, 255, 0.8)" />
-          <Text style={styles.inputLabel}>Background Color</Text>
+      <View style={styles.formSection}>
+        <View style={styles.inputContainer}>
+          <View style={styles.inputLabelContainer}>
+            <Ionicons name="image" size={16} color="rgba(255, 255, 255, 0.8)" />
+            <Text style={styles.inputLabel}>Event Image</Text>
+          </View>
+          <ImageUploader
+            onImageUploaded={handleImageUpload}
+            currentImageUrl={form.image || undefined}
+            imageType={ImageType.EVENT_HEADER}
+          />
         </View>
-        <View style={styles.colorGrid}>
-          {colorOptions.map((color) => (
-            <TouchableOpacity
-              key={color}
-              style={[
-                styles.colorOption,
-                { backgroundColor: color },
-                form.color === color && styles.colorOptionActive
-              ]}
-              onPress={() => updateForm('color', color)}
-            >
-              {form.color === color && (
-                <Ionicons name="checkmark" size={20} color={Colors.white} />
-              )}
-            </TouchableOpacity>
-          ))}
+        
+        <View style={styles.inputContainer}>
+          <View style={styles.inputLabelContainer}>
+            <Ionicons name="color-palette" size={16} color="rgba(255, 255, 255, 0.8)" />
+            <Text style={styles.inputLabel}>Background Color</Text>
+          </View>
+          <View style={styles.colorGrid}>
+            {colorOptions.map((color) => (
+              <TouchableOpacity
+                key={color}
+                style={[
+                  styles.colorItem,
+                  form.color === color && styles.colorItemSelected
+                ]}
+                onPress={() => updateForm('color', color)}
+              >
+                <View style={[styles.colorCircle, { backgroundColor: color }]} />
+                {form.color === color && (
+                  <Ionicons name="checkmark" size={16} color={Colors.white} style={styles.colorCheck} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </View>
-      
-
     </View>
   );
 
   const renderStep4 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Review Changes</Text>
-      <Text style={styles.stepDescription}>Make sure everything looks good</Text>
-      
-      {/* Event preview card would go here */}
-      <View style={styles.previewCard}>
-        <Text style={styles.previewTitle}>{form.name}</Text>
-        <Text style={styles.previewDetails}>
-          {form.date ? new Date(form.date).toLocaleDateString() : 'No date'} • {form.time || 'No time'}
-        </Text>
-        <Text style={styles.previewLocation}>{form.locationDisplayName || form.location}</Text>
+      <View style={styles.stepHeader}>
+        <Text style={styles.stepTitle}>Review Changes</Text>
+        <Text style={styles.stepSubtitle}>Make sure everything looks good</Text>
       </View>
       
-      <GlassButton
-        title={isUpdating ? "Updating..." : "Update Event"}
-        onPress={handleUpdateEvent}
-        disabled={isUpdating}
-        icon="checkmark"
-      />
+      <View style={styles.formSection}>
+        {/* Event preview card */}
+        <View style={styles.previewCard}>
+          <BlurView intensity={80} tint="dark" style={styles.previewCardBlur}>
+            <View style={styles.previewCardContent}>
+              <View style={styles.previewHeader}>
+                <Text style={styles.previewTitle}>{form.name}</Text>
+                <View style={styles.previewTypeIndicator}>
+                  <Ionicons 
+                    name={eventTypes.find(t => t.id === form.type)?.icon as any || 'calendar'} 
+                    size={16} 
+                    color={Colors.white} 
+                  />
+                  <Text style={styles.previewTypeText}>
+                    {eventTypes.find(t => t.id === form.type)?.name || 'Event'}
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.previewDetailsContainer}>
+                <View style={styles.previewDetailRow}>
+                  <Ionicons name="calendar" size={16} color="rgba(255, 255, 255, 0.8)" />
+                  <Text style={styles.previewDetails}>
+                    {form.date ? new Date(form.date).toLocaleDateString() : 'No date'}
+                  </Text>
+                </View>
+                
+                <View style={styles.previewDetailRow}>
+                  <Ionicons name="time" size={16} color="rgba(255, 255, 255, 0.8)" />
+                  <Text style={styles.previewDetails}>
+                    {form.time || 'No time'}
+                  </Text>
+                </View>
+                
+                <View style={styles.previewDetailRow}>
+                  <Ionicons name="location" size={16} color="rgba(255, 255, 255, 0.8)" />
+                  <Text style={styles.previewLocation}>
+                    {form.locationDisplayName || form.location || 'No location'}
+                  </Text>
+                </View>
+                
+                {form.description && (
+                  <View style={styles.previewDetailRow}>
+                    <Ionicons name="document-text" size={16} color="rgba(255, 255, 255, 0.8)" />
+                    <Text style={styles.previewDescription} numberOfLines={2}>
+                      {form.description}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              
+              <View style={styles.previewPrivacyContainer}>
+                <Ionicons 
+                  name={form.privacy === 'PUBLIC' ? 'globe-outline' : 'lock-closed-outline'} 
+                  size={14} 
+                  color="rgba(255, 255, 255, 0.6)" 
+                />
+                <Text style={styles.previewPrivacyText}>
+                  {form.privacy === 'PUBLIC' ? 'Public Event' : 'Private Event'}
+                </Text>
+              </View>
+            </View>
+          </BlurView>
+        </View>
+      </View>
     </View>
   );
 
@@ -675,148 +764,167 @@ const EditEventScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.background}
-      />
-      
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={Colors.white} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Event</Text>
-          <View style={{ width: 24 }} />
-        </View>
-        
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {renderCurrentStep()}
-        </ScrollView>
-        
-        <View style={styles.footer}>
-          <View style={styles.stepIndicator}>
-            {[1, 2, 3, 4].map((step) => (
-              <View
-                key={step}
-                style={[
-                  styles.stepDot,
-                  currentStep >= step && styles.stepDotActive
-                ]}
-              />
-            ))}
-          </View>
+
+      {/* Step Indicator */}
+      <StepIndicator />
+
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {renderCurrentStep()}
+      </ScrollView>
+
+      {/* Navigation Buttons */}
+      <View style={styles.navigationContainer}>
+        <View style={styles.navigationButtons}>
+          {currentStep > 1 && (
+            <GlassButton
+              title="Back"
+              onPress={handleBack}
+              variant="secondary"
+              icon="chevron-back"
+            />
+          )}
           
-          <View style={styles.navigationButtons}>
-            {currentStep > 1 && (
-              <GlassButton
-                title="Back"
-                onPress={handleBack}
-                variant="secondary"
-                icon="chevron-back"
-              />
-            )}
-            
-            {currentStep < 4 && (
-              <GlassButton
-                title="Next"
-                onPress={handleNext}
-                disabled={!isStepValid()}
-                icon="chevron-forward"
-              />
-            )}
-          </View>
+          <View style={styles.navigationSpacer} />
+          
+          {currentStep < 4 ? (
+            <GlassButton
+              title="Next"
+              onPress={handleNext}
+              variant="primary"
+              icon="chevron-forward"
+              disabled={!isStepValid()}
+            />
+          ) : (
+            <GlassButton
+              title={isUpdating ? "Updating..." : "Update"}
+              onPress={handleUpdateEvent}
+              variant="primary"
+              icon={isUpdating ? "hourglass" : "checkmark"}
+              disabled={isUpdating || !isStepValid()}
+            />
+          )}
         </View>
-      </SafeAreaView>
-      
+      </View>
+
       {/* Date/Time Picker Modals would go here */}
-    </View>
+    </SafeAreaView>
   );
 };
 
-// Styles (same as CreateEventScreen)
+// Styles (matching CreateEventScreen design pattern)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.black,
   },
-  background: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
+  stepIndicator: {
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 44 : 20,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
   },
-  loadingText: {
-    color: Colors.white,
-    fontSize: FontSize.large,
-    fontWeight: FontWeight.medium,
-  },
-  header: {
+  stepIndicatorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.large,
-    paddingVertical: Spacing.medium,
   },
-  headerTitle: {
+  stepDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  stepDotActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  stepNumber: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
     color: Colors.white,
-    fontSize: FontSize.large,
-    fontWeight: FontWeight.semibold,
+  },
+  stepLine: {
+    width: 30,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginHorizontal: Spacing.xs,
+  },
+  stepLineActive: {
+    backgroundColor: Colors.primary,
   },
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 20,
+  },
   stepContainer: {
-    padding: Spacing.large,
+    flex: 1,
+    padding: Spacing.xl,
+  },
+  stepHeader: {
+    alignItems: 'center',
+    marginBottom: Spacing.md,
   },
   stepTitle: {
-    color: Colors.white,
-    fontSize: FontSize.extraLarge,
+    fontSize: FontSize.xxl,
     fontWeight: FontWeight.bold,
-    marginBottom: Spacing.small,
+    color: Colors.white,
+    marginBottom: Spacing.sm,
   },
-  stepDescription: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: FontSize.medium,
-    marginBottom: Spacing.extraLarge,
+  stepSubtitle: {
+    fontSize: FontSize.md,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+  },
+  formSection: {
+    gap: Spacing.lg,
   },
   inputContainer: {
-    marginBottom: Spacing.large,
+    gap: Spacing.sm,
   },
   inputLabelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.small,
+    gap: Spacing.sm,
+    paddingLeft: Spacing.sm,
   },
   inputLabel: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
     color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: FontSize.medium,
-    fontWeight: FontWeight.medium,
-    marginLeft: Spacing.small,
   },
   inputBlur: {
-    borderRadius: BorderRadius.medium,
+    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
+    ...Shadows.medium,
   },
   textInput: {
-    padding: Spacing.medium,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    fontSize: FontSize.md,
     color: Colors.white,
-    fontSize: FontSize.medium,
     minHeight: 50,
   },
   textInputMultiline: {
     minHeight: 100,
     textAlignVertical: 'top',
+    paddingTop: Spacing.md,
   },
   pickerInput: {
     flexDirection: 'row',
@@ -825,116 +933,108 @@ const styles = StyleSheet.create({
   },
   pickerText: {
     color: Colors.white,
-    fontSize: FontSize.medium,
+    fontSize: FontSize.md,
   },
   pickerPlaceholder: {
     color: 'rgba(255, 255, 255, 0.5)',
   },
-  eventTypeGrid: {
+  typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: Spacing.sm,
   },
-  eventTypeButton: {
-    width: '48%',
-    marginBottom: Spacing.medium,
-  },
-  eventTypeBlur: {
-    borderRadius: BorderRadius.medium,
+  typeItem: {
+    width: (width - Spacing.xl * 2 - Spacing.sm * 2) / 3,
+    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
+    ...Shadows.small,
   },
-  eventTypeContent: {
-    padding: Spacing.medium,
+  typeItemSelected: {
+    transform: [{ scale: 0.95 }],
+  },
+  typeBlur: {
+    borderRadius: BorderRadius.lg,
+  },
+  typeContent: {
     alignItems: 'center',
-    borderRadius: BorderRadius.medium,
+    padding: Spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  eventTypeText: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: FontSize.small,
-    fontWeight: FontWeight.medium,
-    marginTop: Spacing.small,
+  typeIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
   },
-  eventTypeTextActive: {
+  typeName: {
+    fontSize: FontSize.xs,
     color: Colors.white,
+    textAlign: 'center',
+    fontWeight: FontWeight.medium,
   },
   colorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: Spacing.sm,
   },
-  colorOption: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginBottom: Spacing.small,
-    alignItems: 'center',
+  colorItem: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
   },
-  colorOptionActive: {
+  colorItemSelected: {
     borderWidth: 2,
     borderColor: Colors.white,
   },
-  previewCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: BorderRadius.medium,
-    padding: Spacing.large,
-    marginBottom: Spacing.large,
+  colorCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
-  previewTitle: {
-    color: Colors.white,
-    fontSize: FontSize.large,
-    fontWeight: FontWeight.bold,
-    marginBottom: Spacing.small,
+  colorCheck: {
+    position: 'absolute',
   },
-  previewDetails: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: FontSize.medium,
-    marginBottom: Spacing.small,
-  },
-  previewLocation: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: FontSize.medium,
-  },
-  footer: {
-    padding: Spacing.large,
-  },
-  stepIndicator: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: Spacing.large,
-  },
-  stepDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    marginHorizontal: 4,
-  },
-  stepDotActive: {
-    backgroundColor: Colors.white,
+  navigationContainer: {
+    padding: Spacing.lg,
   },
   navigationButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: Spacing.md,
+    marginBottom: 50
+  },
+  navigationSpacer: {
+    flex: 1,
   },
   glassButton: {
-    borderRadius: BorderRadius.medium,
+    borderRadius: BorderRadius.md,
     overflow: 'hidden',
     flex: 1,
-    marginHorizontal: Spacing.small,
+    marginHorizontal: Spacing.xs,
+    ...Shadows.medium,
   },
   glassButtonDisabled: {
     opacity: 0.5,
   },
   glassButtonBlur: {
-    borderRadius: BorderRadius.medium,
+    borderRadius: BorderRadius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   glassButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.medium,
-    borderRadius: BorderRadius.medium,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
   },
   glassButtonPrimary: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -947,15 +1047,175 @@ const styles = StyleSheet.create({
   },
   glassButtonText: {
     color: Colors.white,
-    fontSize: FontSize.medium,
+    fontSize: FontSize.md,
     fontWeight: FontWeight.semibold,
-    marginRight: Spacing.small,
+    marginRight: Spacing.sm,
   },
   glassButtonSecondaryText: {
     color: 'rgba(255, 255, 255, 0.8)',
   },
   glassButtonTextDisabled: {
     color: 'rgba(255, 255, 255, 0.3)',
+  },
+  formCard: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+    ...Shadows.large,
+  },
+  formCardBlur: {
+    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  formCardContent: {
+    padding: Spacing.lg,
+  },
+  sectionCard: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+    ...Shadows.large,
+  },
+  sectionCardBlur: {
+    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  sectionCardContent: {
+    padding: Spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  sectionTitle: {
+    color: Colors.white,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    marginLeft: Spacing.sm,
+  },
+  eventTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  eventTypeButton: {
+    width: '48%',
+    marginBottom: Spacing.md,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+  },
+  eventTypeBlur: {
+    borderRadius: BorderRadius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  eventTypeContent: {
+    padding: Spacing.md,
+    alignItems: 'center',
+    borderRadius: BorderRadius.md,
+  },
+  eventTypeText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    marginTop: Spacing.sm,
+  },
+  eventTypeTextActive: {
+    color: Colors.white,
+  },
+  eventTypeIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginBottom: Spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewCard: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+    ...Shadows.large,
+  },
+  previewCardBlur: {
+    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  previewCardContent: {
+    padding: Spacing.lg,
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  previewTitle: {
+    color: Colors.white,
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    marginRight: Spacing.sm,
+  },
+  previewTypeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  previewTypeText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+  },
+  previewDetailsContainer: {
+    marginBottom: Spacing.sm,
+  },
+  previewDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  previewDetails: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: FontSize.md,
+    marginLeft: Spacing.sm,
+  },
+  previewLocation: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: FontSize.md,
+  },
+  previewDescription: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: FontSize.md,
+  },
+  previewPrivacyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  previewPrivacyText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    marginLeft: Spacing.sm,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: Colors.white,
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.medium,
+  },
+  safeArea: {
+    flex: 1,
   },
 });
 
