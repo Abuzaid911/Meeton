@@ -257,7 +257,9 @@ const NotificationsScreen: React.FC = () => {
             params: { showFriendRequests: true }
           });
         } else if (link.startsWith('/profile/edit')) {
-          (navigation as any).navigate('EditProfile');
+          (navigation as any).navigate('Profile', { 
+            screen: 'EditProfile'
+          });
         } else {
           console.log('Unhandled notification link:', link);
         }
