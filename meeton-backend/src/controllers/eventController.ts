@@ -62,6 +62,7 @@ class EventController {
   async getEvents(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       console.log('🔍 [BACKEND] getEvents - User ID:', req.user?.id || 'No user');
+      console.log('🔍 [BACKEND] Query params:', req.query);
 
       const {
         page = '1',
@@ -77,6 +78,8 @@ class EventController {
         sortOrder = 'asc',
       } = req.query;
 
+      console.log('🔍 [BACKEND] Extracted privacy param:', { privacy, type: typeof privacy, value: privacy });
+
       const options = {
         page: parseInt(page as string, 10),
         limit: Math.min(parseInt(limit as string, 10), 100), // Max 100 events per page
@@ -90,6 +93,8 @@ class EventController {
         sortBy: sortBy as 'date' | 'created' | 'name' | 'popularity',
         sortOrder: sortOrder as 'asc' | 'desc',
       };
+
+      console.log('🔍 [BACKEND] Final options passed to service:', options);
 
       const result = await eventService.getEvents(options, req.user?.id);
       

@@ -329,7 +329,7 @@ class EventService {
     page: number;
     totalPages: number;
   }> {
-    console.log('🔍 [SERVICE] getEvents - userId:', userId);
+    console.log('🔍 [SERVICE] getEvents called with:', { options, userId });
 
     const {
       page = 1,
@@ -344,6 +344,8 @@ class EventService {
       sortBy = 'date',
       sortOrder = 'asc',
     } = options;
+
+    console.log('🔍 [SERVICE] Extracted privacyLevel:', { privacyLevel, type: typeof privacyLevel, truthy: !!privacyLevel });
 
     const skip = (page - 1) * limit;
 
@@ -452,6 +454,7 @@ class EventService {
       }
     }
 
+    console.log('🔍 [SERVICE] Final WHERE clause:', JSON.stringify(where, null, 2));
     console.log('🔍 [SERVICE] WHERE clause has hostId filter:', userId ? `{ hostId: ${userId} }` : 'No user filter');
 
     // Build order by clause
