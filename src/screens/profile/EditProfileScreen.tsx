@@ -263,17 +263,6 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
               />
             </View>
 
-            {/* Profile Details Section */}
-            {/* <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Profile Details</Text>
-              <InputField
-                label="Location"
-                value={formData.location || ''}
-                onChangeText={handleLocationChange}
-                placeholder="City, State"
-                maxLength={100}
-              />
-            </View> */}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

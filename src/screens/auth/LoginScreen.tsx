@@ -313,13 +313,13 @@ const LoginScreen: React.FC = () => {
               ]
             }
           ]}>
-            <TouchableOpacity>
+            {/* <TouchableOpacity>
               <Text style={styles.legalText}>Privacy Policy</Text>
             </TouchableOpacity>
             <Text style={styles.legalSeparator}>•</Text>
             <TouchableOpacity>
               <Text style={styles.legalText}>Terms of Service</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </Animated.View>
 
         </View>

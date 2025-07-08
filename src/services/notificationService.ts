@@ -57,7 +57,11 @@ class NotificationService {
       } else if (messaging) {
         console.log('🔥 Using Firebase Messaging');
         this.useExpoNotifications = false;
-        await this.initializeFirebaseMessaging();
+        try {
+          await this.initializeFirebaseMessaging();
+        } catch (firebaseError) {
+          console.log('⚠️ Firebase messaging initialization failed, continuing without notifications:', firebaseError);
+        }
       } else {
         console.log('⚠️ No notification system available');
         return;
@@ -66,7 +70,9 @@ class NotificationService {
       this.isInitialized = true;
       console.log('✅ Notification Service initialized successfully');
     } catch (error) {
-      console.error('❌ Failed to initialize Notification Service:', error);
+      console.log('⚠️ Failed to initialize Notification Service, continuing without notifications:', error);
+      // Don't throw error - let the app continue without notifications
+      this.isInitialized = false;
     }
   }
 
@@ -121,7 +127,8 @@ class NotificationService {
       this.setupFirebaseNotificationListeners();
 
     } catch (error) {
-      console.error('Error initializing Firebase messaging:', error);
+      console.log('⚠️ Error initializing Firebase messaging, continuing without it:', error);
+      // Don't throw error - let the app continue without Firebase notifications
     }
   }
 
@@ -192,7 +199,7 @@ class NotificationService {
         return false;
       }
     } catch (error) {
-      console.error('Error requesting Firebase notification permission:', error);
+      console.log('⚠️ Error requesting Firebase notification permission, continuing without notifications:', error);
       return false;
     }
   }
@@ -228,6 +235,17 @@ class NotificationService {
    */
   private async getFirebaseToken(): Promise<void> {
     try {
+      // Register device for remote messages first (required for iOS)
+      if (Platform.OS === 'ios') {
+        try {
+          await messaging().registerDeviceForRemoteMessages();
+          console.log('📱 Device registered for remote messages');
+        } catch (registerError) {
+          console.log('⚠️ Device registration failed, continuing without FCM:', registerError);
+          return; // Exit gracefully if registration fails
+        }
+      }
+
       const token = await messaging().getToken();
       
       if (token) {
@@ -251,7 +269,8 @@ class NotificationService {
         console.log('⚠️ No FCM token received');
       }
     } catch (error) {
-      console.error('Error getting FCM token:', error);
+      console.log('⚠️ Error getting FCM token, continuing without it:', error);
+      // Don't throw error - let the app continue without FCM
     }
   }
 
@@ -400,11 +419,21 @@ class NotificationService {
           return token.data;
         }
       } else if (messaging) {
-        const token = await messaging().getToken();
-        if (token) {
-          this.notificationToken = token;
-          await AsyncStorage.setItem('fcm_token', token);
-          return token;
+        try {
+          // Register device for remote messages first (required for iOS)
+          if (Platform.OS === 'ios') {
+            await messaging().registerDeviceForRemoteMessages();
+          }
+          
+          const token = await messaging().getToken();
+          if (token) {
+            this.notificationToken = token;
+            await AsyncStorage.setItem('fcm_token', token);
+            return token;
+          }
+        } catch (fcmError) {
+          console.log('⚠️ Error getting fresh FCM token:', fcmError);
+          // Continue without FCM token
         }
       }
       

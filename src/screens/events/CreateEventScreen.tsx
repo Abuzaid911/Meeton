@@ -1085,7 +1085,7 @@ const CreateEventScreen: React.FC = () => {
               </BlurView>
             </TouchableOpacity>
             
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={[
                 styles.privacyToggleButton,
                 form.privacy === 'PRIVATE' && styles.privacyToggleButtonActive
@@ -1118,7 +1118,7 @@ const CreateEventScreen: React.FC = () => {
                   </View>
                 </View>
               </BlurView>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 
