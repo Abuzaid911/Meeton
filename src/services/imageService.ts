@@ -24,7 +24,7 @@ import { API_BASE_URL } from '../config/api';
  */
 
 export interface ImagePickerOptions {
-  mediaTypes?: ImagePicker.MediaTypeOptions;
+  mediaTypes?: any; // Use any to avoid type conflicts during migration
   allowsEditing?: boolean;
   aspect?: [number, number];
   quality?: number;
@@ -345,9 +345,9 @@ class ImageService {
         name: 'event_header.jpg',
       } as any);
 
-      // Upload via API
+      // Upload via API (remove /api prefix since it's already in API_BASE_URL)
       const response = await this.uploadWithProgress(
-        `/api/images/event/${eventId}/header`,
+        `/images/event/${eventId}/header`,
         formData,
         onProgress
       );
@@ -391,9 +391,9 @@ class ImageService {
         formData.append('caption', caption);
       }
 
-      // Upload via API
+      // Upload via API (remove /api prefix since it's already in API_BASE_URL)
       const response = await this.uploadWithProgress(
-        `/api/images/event/${eventId}/photos`,
+        `/images/event/${eventId}/photos`,
         formData,
         onProgress
       );
@@ -419,7 +419,7 @@ class ImageService {
   ): Promise<EventPhotosResponse> {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/images/event/${eventId}/photos?page=${page}&limit=${limit}`,
+        `${API_BASE_URL}/images/event/${eventId}/photos?page=${page}&limit=${limit}`,
         {
           method: 'GET',
           headers: {
@@ -442,6 +442,44 @@ class ImageService {
   }
 
   /**
+   * Check if user can upload photos to event
+   */
+  static async checkEventUploadPermissions(eventId: string): Promise<{
+    canUpload: boolean;
+    reason?: string;
+    userStatus?: string;
+  }> {
+    try {
+      const accessToken = await this.getValidAccessToken();
+      if (!accessToken) {
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/images/event/${eventId}/upload-permissions`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error?.message || 'Failed to check upload permissions');
+      }
+
+      return data.data;
+    } catch (error) {
+      console.error('Check upload permissions failed:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Delete event photo
    */
   static async deleteEventPhoto(photoId: string): Promise<boolean> {
@@ -452,7 +490,7 @@ class ImageService {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/api/images/event/photos/${photoId}`,
+        `${API_BASE_URL}/images/event/photos/${photoId}`,
         {
           method: 'DELETE',
           headers: {
@@ -477,7 +515,7 @@ class ImageService {
     try {
       const encodedPublicId = encodeURIComponent(publicId);
       const response = await fetch(
-        `${API_BASE_URL}/api/images/variations/${encodedPublicId}`,
+        `${API_BASE_URL}/images/variations/${encodedPublicId}`,
         {
           method: 'GET',
           headers: {

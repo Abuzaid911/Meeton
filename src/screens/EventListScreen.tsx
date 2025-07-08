@@ -426,7 +426,7 @@ const EventListScreen: React.FC = () => {
               <>
                 <View style={styles.headerSpacer} />
                 <Image
-                  source={require('../../assets/meetlogo.png')}
+                  source={require('../../assets/Meetlogowhite.png')}
                   style={styles.appLogo}
                   resizeMode="contain"
                 />

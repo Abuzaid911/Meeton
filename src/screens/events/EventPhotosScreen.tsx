@@ -3,6 +3,7 @@ import { View, StyleSheet, SafeAreaView, Alert, TouchableOpacity, Text } from 'r
 import { Colors } from '../../constants';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRSVP } from '../../contexts/RSVPContext';
 import { RSVP } from '../../types';
 import APIService from '../../services/api';
 import EventPhotosGallery from '../../components/events/EventPhotosGallery';
@@ -19,6 +20,7 @@ const EventPhotosScreen: React.FC = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  const { userRSVP, setEventRSVP } = useRSVP();
   const eventId = route.params?.eventId;
   const [uploadPermissions, setUploadPermissions] = useState<UploadPermissions>({
     canUpload: false
@@ -34,6 +36,17 @@ const EventPhotosScreen: React.FC = () => {
       const permissions = await APIService.checkEventUploadPermissions(eventId);
       if (permissions) {
         setUploadPermissions(permissions);
+        
+        // Sync RSVP context with server response
+        if (permissions.rsvpStatus) {
+          const serverRSVP = permissions.rsvpStatus as RSVP;
+          const contextRSVP = userRSVP(eventId);
+          
+          if (contextRSVP !== serverRSVP) {
+            console.log('🔄 [RSVP DEBUG] Syncing RSVP context. Context:', contextRSVP, 'Server:', serverRSVP);
+            setEventRSVP(eventId, serverRSVP);
+          }
+        }
       } else {
         // Fallback to old method for backward compatibility
         const attendees = await APIService.getEventAttendees(eventId);
@@ -49,6 +62,17 @@ const EventPhotosScreen: React.FC = () => {
             ) : undefined,
             rsvpStatus: me?.rsvp
           });
+          
+          // Sync RSVP context with server response
+          if (me?.rsvp) {
+            const serverRSVP = me.rsvp as RSVP;
+            const contextRSVP = userRSVP(eventId);
+            
+            if (contextRSVP !== serverRSVP) {
+              console.log('🔄 [RSVP DEBUG] Syncing RSVP context (fallback). Context:', contextRSVP, 'Server:', serverRSVP);
+              setEventRSVP(eventId, serverRSVP);
+            }
+          }
         } else {
           setUploadPermissions({
             canUpload: false,
@@ -65,7 +89,7 @@ const EventPhotosScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [eventId, user?.id]);
+  }, [eventId, user?.id, userRSVP, setEventRSVP]);
 
   useEffect(() => {
     checkUploadPermissions();
