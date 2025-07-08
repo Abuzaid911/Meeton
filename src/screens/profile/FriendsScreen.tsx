@@ -11,11 +11,12 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../constants';
 import APIService from '../../services/api';
 
@@ -39,6 +40,7 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
   
   const [activeTab, setActiveTab] = useState(tab);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [friendsData, setFriendsData] = useState<FriendsData>({
     friends: [],
     requests: { sent: [], received: [] },
@@ -49,19 +51,37 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
     loadFriendsData();
   }, []);
 
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔍 [FriendsScreen] Screen focused, refreshing data...');
+      loadFriendsData();
+    }, [])
+  );
+
   const loadFriendsData = async () => {
     setLoading(true);
     try {
+      console.log('🔍 [FriendsScreen] Loading friends data...');
+      
       const [friends, requests, suggested] = await Promise.all([
         APIService.getFriends(),
         APIService.getFriendRequests(),
         APIService.getSuggestedFriends()
       ]);
 
+      console.log('🔍 [FriendsScreen] Friends loaded:', friends?.length || 0);
+      console.log('🔍 [FriendsScreen] Requests loaded:', {
+        sent: requests?.sent?.length || 0,
+        received: requests?.received?.length || 0
+      });
+      console.log('🔍 [FriendsScreen] Suggested loaded:', suggested?.length || 0);
+      console.log('🔍 [FriendsScreen] Request details:', requests);
+
       setFriendsData({
-        friends,
-        requests,
-        suggested
+        friends: friends || [],
+        requests: requests || { sent: [], received: [] },
+        suggested: suggested || []
       });
     } catch (error) {
       console.error('Failed to load friends data:', error);
@@ -73,10 +93,14 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
 
   const handleSendFriendRequest = async (userId: string) => {
     try {
+      console.log('🔍 [FriendsScreen] Sending friend request to:', userId);
       const result = await APIService.sendFriendRequest(userId);
+      console.log('🔍 [FriendsScreen] Send request result:', result);
+      
       if (result.success) {
         Alert.alert('Success', 'Friend request sent!');
-        loadFriendsData();
+        console.log('🔍 [FriendsScreen] Refreshing data after sending request...');
+        await loadFriendsData(); // Refresh data
       } else {
         Alert.alert('Error', result.error || 'Failed to send friend request');
       }
@@ -88,10 +112,14 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
 
   const handleRespondToRequest = async (requestId: string, action: 'ACCEPTED' | 'DECLINED') => {
     try {
+      console.log(`🔍 [FriendsScreen] Responding to request ${requestId} with action:`, action);
       const result = await APIService.respondToFriendRequest(requestId, action);
+      console.log('🔍 [FriendsScreen] Response result:', result);
+      
       if (result.success) {
         Alert.alert('Success', `Friend request ${action.toLowerCase()}!`);
-        loadFriendsData();
+        console.log('🔍 [FriendsScreen] Refreshing data after responding...');
+        await loadFriendsData(); // Refresh data
       } else {
         // Show the specific error message from the API (including session expiry)
         Alert.alert('Error', result.error || `Failed to ${action.toLowerCase()} friend request`);
@@ -113,10 +141,14 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('🔍 [FriendsScreen] Cancelling friend request to:', userId);
               const success = await APIService.cancelFriendRequest(userId);
+              console.log('🔍 [FriendsScreen] Cancel result:', success);
+              
               if (success) {
                 Alert.alert('Success', 'Friend request cancelled');
-                loadFriendsData(); // Refresh the list
+                console.log('🔍 [FriendsScreen] Refreshing data after cancelling...');
+                await loadFriendsData(); // Refresh the list
               } else {
                 Alert.alert('Error', 'Failed to cancel friend request');
               }
@@ -260,6 +292,9 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
       }
     })();
 
+    console.log(`🔍 [FriendsScreen] Rendering ${activeTab} tab with data:`, data);
+    console.log(`🔍 [FriendsScreen] Data length: ${data?.length || 0}`);
+
     if (data.length === 0) {
       const emptyStates = {
         friends: { icon: 'people-outline', title: 'No Friends Yet', subtitle: 'Start by sending friend requests!' },
@@ -286,6 +321,8 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
                       activeTab === 'requests' ? item.sender : 
                       item;
           const requestId = (activeTab === 'requests' || activeTab === 'sent') ? item.id : undefined;
+          
+          console.log(`🔍 [FriendsScreen] Rendering item ${index}:`, { user: user?.username, requestId, type: activeTab });
           
           return (
             <UserCard 
@@ -355,6 +392,12 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={loadFriendsData}
+          />
+        }
       >
         {renderContent()}
       </ScrollView>

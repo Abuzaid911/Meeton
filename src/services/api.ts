@@ -1116,6 +1116,10 @@ export class APIService {
       });
 
       if (response.success && response.data) {
+        console.log('🔍 [API] Friend requests raw response:', response.data);
+        console.log('🔍 [API] Sent requests count:', response.data.sent?.length || 0);
+        console.log('🔍 [API] Received requests count:', response.data.received?.length || 0);
+        
         return {
           sent: response.data.sent.map(req => ({
             id: req.id,
