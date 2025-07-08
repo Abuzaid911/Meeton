@@ -341,6 +341,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       if (result.success) {
         Alert.alert('Success', `Friend request sent to ${profileUser?.name}!`);
         setFriendshipStatus({ status: 'PENDING_SENT' });
+        // Reload friends data to keep counts in sync
+        loadFriendsData();
       } else {
         Alert.alert('Error', result.error || 'Failed to send friend request');
       }
@@ -358,6 +360,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       if (result.success) {
         Alert.alert('Success', 'Friend request accepted!');
         setFriendshipStatus({ status: 'FRIENDS' });
+        // Reload friends data to keep counts in sync
+        loadFriendsData();
       } else {
         Alert.alert('Error', result.error || 'Failed to accept friend request');
       }
@@ -375,6 +379,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       if (result.success) {
         Alert.alert('Success', 'Friend request declined');
         setFriendshipStatus({ status: 'NONE' });
+        // Reload friends data to keep counts in sync
+        loadFriendsData();
       } else {
         Alert.alert('Error', result.error || 'Failed to decline friend request');
       }
@@ -401,6 +407,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               if (success) {
                 Alert.alert('Success', 'Friend removed successfully');
                 setFriendshipStatus({ status: 'NONE' });
+                // Reload friends data to keep counts in sync
+                loadFriendsData();
               } else {
                 Alert.alert('Error', 'Failed to remove friend');
               }
@@ -431,6 +439,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               if (success) {
                 Alert.alert('Success', 'Friend request cancelled');
                 setFriendshipStatus({ status: 'NONE' });
+                // Reload friends data to keep counts in sync
+                loadFriendsData();
               } else {
                 Alert.alert('Error', 'Failed to cancel friend request');
               }

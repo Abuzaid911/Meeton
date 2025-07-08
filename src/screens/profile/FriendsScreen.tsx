@@ -15,7 +15,7 @@ import {
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../constants';
 import APIService from '../../services/api';
 
@@ -48,6 +48,13 @@ const FriendsScreen: React.FC<FriendsScreenProps> = ({ navigation }) => {
   useEffect(() => {
     loadFriendsData();
   }, []);
+
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadFriendsData();
+    }, [])
+  );
 
   const loadFriendsData = async () => {
     setLoading(true);

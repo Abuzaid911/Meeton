@@ -1433,7 +1433,7 @@ export class APIService {
   static async useInviteLink(token: string): Promise<boolean> {
     const response = await this.makeRequest(`/sharing/invite/${token}/use`, {
       method: 'POST',
-      requireAuth: false,
+      requireAuth: this.isAuthenticated(), // Use auth if user is logged in
       action: 'use invite link',
     });
 
@@ -1756,7 +1756,7 @@ export class APIService {
         action: 'check upload permissions',
       });
       
-      return response.success ? response.data : null;
+      return response.success && response.data ? response.data : null;
     } catch (error) {
       console.error('Failed to check upload permissions:', error);
       return null;
@@ -1803,9 +1803,40 @@ export class APIService {
         action: 'upload multiple photos',
       });
       
-      return response.success ? response.data : null;
+      return response.success && response.data ? response.data : null;
     } catch (error) {
       console.error('Failed to upload multiple photos:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Invite users directly to an event (triggers notifications)
+   */
+  static async inviteUsersToEvent(
+    eventId: string, 
+    userIds: string[], 
+    customMessage?: string
+  ): Promise<{
+    invitationsSent: number;
+    invitationsFailed: number;
+    results: Array<{ userId: string; success: boolean; error?: string }>;
+  } | null> {
+    try {
+      const response = await this.makeRequest<{
+        invitationsSent: number;
+        invitationsFailed: number;
+        results: Array<{ userId: string; success: boolean; error?: string }>;
+      }>(`/events/${eventId}/invite`, {
+        method: 'POST',
+        body: { userIds, customMessage },
+        requireAuth: true,
+        action: 'invite users to event',
+      });
+      
+      return response.success && response.data ? response.data : null;
+    } catch (error) {
+      console.error('Failed to invite users to event:', error);
       return null;
     }
   }
