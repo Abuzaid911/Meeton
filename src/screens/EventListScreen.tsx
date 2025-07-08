@@ -26,15 +26,45 @@ import APIService from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 
-// Weather data mock (in real app, fetch from weather API)
-const getWeatherForEvent = (eventId: string) => {
-  const weatherOptions = [
-    { icon: 'sunny', temp: '36°C', condition: 'sunny' },
-    { icon: 'sunny', temp: '31°C', condition: 'sunny' },
-    { icon: 'sunny', temp: '34°C', condition: 'sunny' },
-    { icon: 'sunny', temp: '30°C', condition: 'sunny' },
-  ];
-  return weatherOptions[Math.floor(Math.random() * weatherOptions.length)];
+// Real weather data using RapidAPI
+const getWeatherForEvent = async (event: Event) => {
+  try {
+    // First try to get weather by event ID (uses event date and location)
+    if (event.id) {
+      const weather = await APIService.getEventWeather(event.id);
+      if (weather) {
+        return {
+          icon: weather.condition === 'Clear' ? 'sunny' : 
+                weather.condition === 'Clouds' ? 'cloudy' : 
+                weather.condition === 'Rain' ? 'rainy' : 
+                weather.condition === 'Snow' ? 'snow' : 'partly-sunny',
+          temp: `${weather.temperature}°C`,
+          condition: weather.description || weather.condition.toLowerCase(),
+        };
+      }
+    }
+    
+    // Fallback to current weather using coordinates
+    if (event.lat && event.lng) {
+      const weather = await APIService.getCurrentWeather(event.lat, event.lng);
+      if (weather) {
+        return {
+          icon: weather.condition === 'Clear' ? 'sunny' : 
+                weather.condition === 'Clouds' ? 'cloudy' : 
+                weather.condition === 'Rain' ? 'rainy' : 
+                weather.condition === 'Snow' ? 'snow' : 'partly-sunny',
+          temp: `${weather.temperature}°C`,
+          condition: weather.description || weather.condition.toLowerCase(),
+        };
+      }
+    }
+    
+    // Return null if no weather data available
+    return null;
+  } catch (error) {
+    console.error('Failed to get weather for event:', event.id, error);
+    return null;
+  }
 };
 
 const EventListScreen: React.FC = () => {
@@ -171,11 +201,31 @@ const EventListScreen: React.FC = () => {
   }).current;
 
   const EventCard: React.FC<{ event: Event; index: number }> = ({ event, index }) => {
+    const [weather, setWeather] = useState<{icon: string; temp: string; condition: string} | null>(null);
+    const [weatherLoading, setWeatherLoading] = useState(true);
+    
     const attendeeCount = event.attendees?.filter(a => a.rsvp === RSVP.YES).length || 0;
     const isHosting = event.hostId === user?.id;
-    const weather = getWeatherForEvent(event.id);
     // Only show confirmed attendees (going + maybe), never "not going" users
     const confirmedAttendees = event.attendees?.filter(a => a.rsvp === RSVP.YES || a.rsvp === RSVP.MAYBE) || [];
+
+    // Load weather data for this event
+    useEffect(() => {
+      const loadWeather = async () => {
+        try {
+          setWeatherLoading(true);
+          const weatherData = await getWeatherForEvent(event);
+          setWeather(weatherData);
+        } catch (error) {
+          console.error('Failed to load weather for event:', event.id, error);
+          setWeather(null);
+        } finally {
+          setWeatherLoading(false);
+        }
+      };
+
+      loadWeather();
+    }, [event.id]);
 
     return (
       <View style={styles.fullScreenCard}>
@@ -197,14 +247,16 @@ const EventListScreen: React.FC = () => {
                   style={styles.cardGlassLayer}
                 >
                   {/* Weather Widget */}
-                  <View style={styles.weatherWidget}>
-                    <BlurView intensity={60} style={styles.weatherBlur}>
-                      <View style={styles.weatherContent}>
-                        <Ionicons name={weather.icon as any} size={16} color={Colors.white} />
-                        <Text style={styles.weatherText}>{weather.temp}</Text>
-                      </View>
-                    </BlurView>
-                  </View>
+                  {weather && (
+                    <View style={styles.weatherWidget}>
+                      <BlurView intensity={60} style={styles.weatherBlur}>
+                        <View style={styles.weatherContent}>
+                          <Ionicons name={weather.icon as any} size={16} color={Colors.white} />
+                          <Text style={styles.weatherText}>{weather.temp}</Text>
+                        </View>
+                      </BlurView>
+                    </View>
+                  )}
 
                   {/* Enhanced Hosting Badge */}
                   {isHosting && (
@@ -286,14 +338,16 @@ const EventListScreen: React.FC = () => {
                   style={styles.cardGlassLayer}
                 >
                   {/* Weather Widget */}
-                  <View style={styles.weatherWidget}>
-                    <BlurView intensity={60} style={styles.weatherBlur}>
-                      <View style={styles.weatherContent}>
-                        <Ionicons name={weather.icon as any} size={16} color={Colors.white} />
-                        <Text style={styles.weatherText}>{weather.temp}</Text>
-                      </View>
-                    </BlurView>
-                  </View>
+                  {weather && (
+                    <View style={styles.weatherWidget}>
+                      <BlurView intensity={60} style={styles.weatherBlur}>
+                        <View style={styles.weatherContent}>
+                          <Ionicons name={weather.icon as any} size={16} color={Colors.white} />
+                          <Text style={styles.weatherText}>{weather.temp}</Text>
+                        </View>
+                      </BlurView>
+                    </View>
+                  )}
 
                   {/* Enhanced Hosting Badge */}
                   {isHosting && (

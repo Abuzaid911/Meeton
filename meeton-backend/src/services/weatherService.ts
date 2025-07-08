@@ -71,8 +71,8 @@ export class WeatherService {
   async getCurrentWeather(lat: number, lng: number): Promise<WeatherData | null> {
     try {
       if (!this.rapidApiKey) {
-        console.warn('RapidAPI Weather key not configured, using mock weather data');
-        return this.getMockWeatherData(lat, lng);
+        console.error('🌤️ RapidAPI Weather key not configured for current weather');
+        throw new Error('Weather API key not configured');
       }
 
       const url = `${this.baseUrl}/city/fivedaysforcast`;
@@ -91,8 +91,8 @@ export class WeatherService {
       const data = await response.json();
       return this.parseRapidApiWeatherData(data);
     } catch (error) {
-      console.error('Error fetching current weather:', error);
-      return this.getMockWeatherData(lat, lng);
+      console.error('🌤️ Error fetching current weather:', error);
+      return null;
     }
   }
 
@@ -102,8 +102,8 @@ export class WeatherService {
   async getWeatherForecast(lat: number, lng: number): Promise<WeatherData | null> {
     try {
       if (!this.rapidApiKey) {
-        console.warn('RapidAPI Weather key not configured, using mock weather data');
-        return this.getMockWeatherData(lat, lng);
+        console.error('🌤️ RapidAPI Weather key not configured for weather forecast');
+        throw new Error('Weather API key not configured');
       }
 
       const url = `${this.baseUrl}/city/fivedaysforcast`;
@@ -122,8 +122,8 @@ export class WeatherService {
       const data = await response.json();
       return this.parseRapidApiWeatherData(data);
     } catch (error) {
-      console.error('Error fetching weather forecast:', error);
-      return this.getMockWeatherData(lat, lng);
+      console.error('🌤️ Error fetching weather forecast:', error);
+      return null;
     }
   }
 
@@ -143,24 +143,31 @@ export class WeatherService {
       });
 
       if (!event || !event.lat || !event.lng) {
-        console.log(`Event ${eventId} has no location coordinates`);
+        console.log(`🌤️ Event ${eventId} has no location coordinates (lat: ${event?.lat}, lng: ${event?.lng})`);
         return null;
       }
 
+      console.log(`🌤️ Getting weather for event ${eventId} at coordinates (${event.lat}, ${event.lng})`);
+      
       const eventDate = new Date(event.date);
       const now = new Date();
       const daysDifference = Math.ceil((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      console.log(`🌤️ Event date: ${eventDate.toISOString()}, Days difference: ${daysDifference}`);
 
       let weatherData: WeatherData | null;
 
       if (daysDifference <= 0) {
         // Event is today or in the past, get current weather
+        console.log(`🌤️ Event is today or past, fetching current weather`);
         weatherData = await this.getCurrentWeather(event.lat, event.lng);
       } else if (daysDifference <= 5) {
         // Event is within 5 days, get forecast
+        console.log(`🌤️ Event is within 5 days, fetching forecast`);
         weatherData = await this.getWeatherForecast(event.lat, event.lng);
       } else {
-        // Event is too far in the future, use historical averages or mock data
+        // Event is too far in the future, use seasonal data (not mock)
+        console.log(`🌤️ Event is ${daysDifference} days away, using seasonal estimation`);
         weatherData = this.getSeasonalWeatherData(event.lat, event.lng, eventDate);
       }
 
@@ -271,9 +278,21 @@ export class WeatherService {
         hourlyForecast: this.parseRapidApiHourlyForecast(data),
       };
     } catch (error) {
-      console.error('Error parsing RapidAPI weather data:', error);
-      // Return mock data as fallback
-      return this.getMockWeatherData(0, 0);
+      console.error('🌤️ Error parsing RapidAPI weather data:', error);
+      // Return basic fallback data instead of mock data
+      return {
+        temperature: 20,
+        condition: 'Unknown',
+        description: 'Weather data unavailable',
+        humidity: 50,
+        windSpeed: 0,
+        windDirection: 0,
+        visibility: 10,
+        uvIndex: 0,
+        pressure: 1013,
+        feelsLike: 20,
+        icon: '01d',
+      };
     }
   }
 
