@@ -415,7 +415,7 @@ function RootStackNavigator() {
       <Stack.Screen name="Main" component={BottomTabNavigator} />
       <Stack.Screen 
         name="Profile" 
-        component={ProfileScreen}
+        component={ProfileStack}
         options={{
           presentation: 'modal',
           animationTypeForReplace: 'push',
