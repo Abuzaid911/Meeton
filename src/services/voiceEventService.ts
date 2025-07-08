@@ -301,6 +301,102 @@ Enhanced description:`;
       return basicDescription; // Fallback to original
     }
   }
+
+  /**
+   * Generate AI-powered event header image using DALL-E
+   */
+  static async generateEventHeader(eventName: string, eventType: string, location?: string): Promise<string | null> {
+    try {
+      if (!ENV.OPENAI_API_KEY || !ENV.OPENAI_API_KEY.startsWith('sk-')) {
+        console.warn('OpenAI API key not configured for image generation');
+        return null;
+      }
+
+      console.log('🎨 Generating AI header image...');
+
+      // Create a descriptive prompt for the event
+      const locationText = location ? ` in ${location}` : '';
+      const prompt = this.createImagePrompt(eventName, eventType, locationText);
+
+      const response = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ENV.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'dall-e-3',
+          prompt: prompt,
+          n: 1,
+          size: '1792x1024', // Perfect for event headers
+          quality: 'standard',
+          style: 'vivid'
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ DALL-E API Error:', errorText);
+        return null;
+      }
+
+      const result = await response.json();
+      const imageUrl = result.data?.[0]?.url;
+
+      if (imageUrl) {
+        console.log('✅ AI header image generated successfully');
+        return imageUrl;
+      } else {
+        console.warn('⚠️ No image URL in DALL-E response');
+        return null;
+      }
+
+    } catch (error) {
+      console.error('❌ Error generating AI header:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Create optimized prompts for different event types
+   */
+  private static createImagePrompt(eventName: string, eventType: string, locationText: string): string {
+    const baseStyle = "Create a beautiful, vibrant, and celebratory event header image";
+    
+    const typePrompts = {
+      birthday: `${baseStyle} for a birthday party${locationText}. Include birthday cake, balloons, confetti, warm lighting, and festive decorations. Style: modern, joyful, colorful with pink and gold accents.`,
+      
+      party: `${baseStyle} for a social party${locationText}. Include disco lights, dancing silhouettes, vibrant colors, music elements, and energetic atmosphere. Style: dynamic, modern, with neon accents.`,
+      
+      networking: `${baseStyle} for a professional networking event${locationText}. Include modern office space, people connecting, handshakes, laptops, clean design, and professional atmosphere. Style: clean, modern, business-friendly with blue and white tones.`,
+      
+      sports: `${baseStyle} for a sports event${locationText}. Include athletic equipment, stadium elements, action poses, team spirit, and energetic vibes. Style: dynamic, energetic with bold colors.`,
+      
+      food: `${baseStyle} for a food-related event${locationText}. Include delicious food, elegant table settings, warm ambiance, chef elements, and appetizing presentation. Style: warm, inviting, with rich colors.`,
+      
+      other: `${baseStyle} for "${eventName}"${locationText}. Include celebration elements, people gathering, warm lighting, and festive atmosphere. Style: versatile, welcoming, with pleasant colors.`
+    };
+
+    const prompt = typePrompts[eventType as keyof typeof typePrompts] || typePrompts.other;
+    
+    return `${prompt} No text or words in the image. Professional quality, suitable for mobile app header.`;
+  }
+
+  /**
+   * Get fallback gradient colors for event types when AI generation isn't available
+   */
+  static getEventTypeGradient(eventType: string): string[] {
+    const gradients = {
+      birthday: ['#FF6B9D', '#E06B9D', '#FF8E9B'],
+      party: ['#A8EDEA', '#FAD0C4', '#FFD5E1'],
+      networking: ['#4ECDC4', '#44A08D', '#5CB3CC'],
+      sports: ['#96CEB4', '#FFECD2', '#B8E6B8'],
+      food: ['#FFB75E', '#ED8F03', '#FFD89B'],
+      other: ['#667eea', '#764ba2', '#8B7ED8']
+    };
+    
+    return gradients[eventType as keyof typeof gradients] || gradients.other;
+  }
 }
 
 // Convenience export for the main processing function

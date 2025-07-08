@@ -27,6 +27,7 @@ import APIService from '../../services/api';
 import { useNavigation } from '@react-navigation/native';
 import ImageUploader from '../../components/common/ImageUploader';
 import VoiceEventCreator from '../../components/common/VoiceEventCreator';
+import CelebrationAnimation from '../../components/common/CelebrationAnimation';
 import { ImageType } from '../../services/imageService';
 import { locationSearchService, LocationSuggestion as LocationSearchSuggestion } from '../../services/locationSearchService';
 import { VoiceEventData } from '../../types';
@@ -200,6 +201,8 @@ const CreateEventScreen: React.FC = () => {
   const [friends, setFriends] = useState<Array<{id: string; name: string; image: string}>>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [isEnhancingDescription, setIsEnhancingDescription] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
   const [form, setForm] = useState<EventForm>({
     name: '',
     description: '',
@@ -349,9 +352,9 @@ const CreateEventScreen: React.FC = () => {
       setIsCreating(false);
       
       if (newEvent) {
-        // Store the created event ID and move to step 5
+        // Store the created event ID and show celebration
         setCreatedEventId(newEvent.id);
-        setCurrentStep(5);
+        setShowCelebration(true);
       } else {
         Alert.alert('Error', 'Failed to create event. Please try again.');
       }
@@ -365,6 +368,11 @@ const CreateEventScreen: React.FC = () => {
 
   const handleShareEvent = () => {
     Alert.alert('Share Event', 'Event link copied to clipboard!');
+  };
+
+  const handleCelebrationComplete = () => {
+    setShowCelebration(false);
+    setCurrentStep(5); // Move to final success step
   };
 
   const handleImageUpload = (cloudinaryUrl: string) => {
@@ -496,6 +504,58 @@ const CreateEventScreen: React.FC = () => {
       );
     } finally {
       setIsEnhancingDescription(false);
+    }
+  };
+
+  const generateAIHeader = async () => {
+    if (!form.name.trim()) {
+      Alert.alert('Event Name Required', 'Please enter an event name first before generating an AI header.');
+      return;
+    }
+
+    if (!form.type) {
+      Alert.alert('Event Type Required', 'Please select an event type first to generate the perfect header!');
+      return;
+    }
+
+    try {
+      setIsGeneratingImage(true);
+      console.log('🎨 Generating AI header image...');
+      
+      const imageUrl = await VoiceEventService.generateEventHeader(
+        form.name,
+        form.type,
+        form.locationDisplayName || form.location
+      );
+      
+      if (imageUrl) {
+        updateForm('image', imageUrl);
+        updateForm('backgroundType', 'image');
+        Alert.alert(
+          '🎨 AI Header Generated!',
+          'Your custom event header has been created! This unique image was designed specifically for your event.',
+          [{ text: 'Amazing!', style: 'default' }]
+        );
+      } else {
+        // Fallback to gradient colors
+        const gradientColors = VoiceEventService.getEventTypeGradient(form.type);
+        updateForm('color', gradientColors[0]);
+        updateForm('backgroundType', 'color');
+        Alert.alert(
+          '🎨 Beautiful Gradient Applied!',
+          'AI image generation is not available right now, but I\'ve applied a beautiful gradient that matches your event type!',
+          [{ text: 'Looks Great!', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error generating AI header:', error);
+      Alert.alert(
+        '❌ Generation Failed',
+        'Could not generate the AI header. Please check your internet connection and try again.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    } finally {
+      setIsGeneratingImage(false);
     }
   };
 
@@ -1407,15 +1467,55 @@ const CreateEventScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Image Selection with Cloudinary Upload */}
+          {/* Image Selection with Cloudinary Upload and AI Generation */}
           {form.backgroundType === 'image' && (
             <View style={styles.imageSelector}>
+              {/* AI Generate Button */}
+              {form.name.trim() && form.type && ENV.ENABLE_VOICE_EVENTS && (
+                <View style={styles.aiGenerateSection}>
+                  <TouchableOpacity 
+                    style={styles.aiGenerateButton}
+                    onPress={generateAIHeader}
+                    disabled={isGeneratingImage}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={['#8B5CF6', '#A855F7', '#C084FC']}
+                      style={styles.aiGenerateGradient}
+                    >
+                      <BlurView intensity={60} style={styles.aiGenerateBlur}>
+                        <View style={styles.aiGenerateContent}>
+                          {isGeneratingImage ? (
+                            <>
+                              <Ionicons name="sync" size={20} color={Colors.white} style={styles.spinningIcon} />
+                              <Text style={styles.aiGenerateText}>Creating your unique header...</Text>
+                            </>
+                          ) : (
+                            <>
+                              <Ionicons name="sparkles" size={20} color={Colors.white} />
+                              <Text style={styles.aiGenerateText}>✨ Generate AI Header</Text>
+                              <Text style={styles.aiGenerateSubtext}>Create unique image for your event</Text>
+                            </>
+                          )}
+                        </View>
+                      </BlurView>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  
+                  <View style={styles.divider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>or</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+                </View>
+              )}
+
               <ImageUploader
                 imageType={ImageType.EVENT_HEADER}
                 onImageUploaded={handleImageUpload}
                 onError={(error: string) => Alert.alert('Upload Error', error)}
                 currentImageUrl={form.image || undefined}
-                placeholder="Add event header image"
+                placeholder="Upload your own image"
               />
             </View>
           )}
@@ -1950,6 +2050,15 @@ const CreateEventScreen: React.FC = () => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Celebration Animation */}
+      <CelebrationAnimation
+        visible={showCelebration}
+        onComplete={handleCelebrationComplete}
+        title={`🎉 ${form.name || 'Event'} Created!`}
+        subtitle="Your amazing event is ready to share with friends"
+        eventType={form.type || 'party'}
+      />
     </SafeAreaView>
   );
 };
@@ -3529,6 +3638,54 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontWeight: FontWeight.medium,
     color: 'rgba(255, 255, 255, 0.9)',
+  },
+  aiGenerateSection: {
+    marginBottom: Spacing.lg,
+  },
+  aiGenerateButton: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    marginBottom: Spacing.md,
+  },
+  aiGenerateGradient: {
+    borderRadius: BorderRadius.lg,
+  },
+  aiGenerateBlur: {
+    borderRadius: BorderRadius.lg,
+  },
+  aiGenerateContent: {
+    padding: Spacing.lg,
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  aiGenerateText: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    textAlign: 'center',
+  },
+  aiGenerateSubtext: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+  },
+  spinningIcon: {
+    // Add animation styles if needed
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  dividerText: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: FontWeight.medium,
   },
 
 });
