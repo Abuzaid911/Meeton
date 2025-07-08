@@ -31,6 +31,7 @@ import { ImageType } from '../../services/imageService';
 import { locationSearchService, LocationSuggestion as LocationSearchSuggestion } from '../../services/locationSearchService';
 import { VoiceEventData } from '../../types';
 import { ENV } from '../../config/env';
+import { VoiceEventService } from '../../services/voiceEventService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -198,6 +199,7 @@ const CreateEventScreen: React.FC = () => {
   const [createdEventId, setCreatedEventId] = useState<string | null>(null);
   const [friends, setFriends] = useState<Array<{id: string; name: string; image: string}>>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
+  const [isEnhancingDescription, setIsEnhancingDescription] = useState(false);
   const [form, setForm] = useState<EventForm>({
     name: '',
     description: '',
@@ -448,6 +450,53 @@ const CreateEventScreen: React.FC = () => {
       error + '\n\nPlease try speaking more clearly or check your internet connection.',
       [{ text: 'Try Again', style: 'default' }]
     );
+  };
+
+  const enhanceDescription = async () => {
+    if (!form.name.trim()) {
+      Alert.alert('Event Name Required', 'Please enter an event name first before enhancing the description.');
+      return;
+    }
+
+    if (!form.description.trim()) {
+      Alert.alert('Description Required', 'Please enter a basic description first, then I can enhance it with AI magic! ✨');
+      return;
+    }
+
+    try {
+      setIsEnhancingDescription(true);
+      console.log('✨ Enhancing description with AI...');
+      
+      const enhancedDescription = await VoiceEventService.enhanceEventDescription(
+        form.description,
+        form.type || 'event',
+        form.name
+      );
+      
+      if (enhancedDescription !== form.description) {
+        updateForm('description', enhancedDescription);
+        Alert.alert(
+          '✨ Description Enhanced!',
+          'Your event description has been enhanced with AI magic!',
+          [{ text: 'Looks Great!', style: 'default' }]
+        );
+      } else {
+        Alert.alert(
+          '💫 Already Perfect!',
+          'Your description is already great! No enhancement needed.',
+          [{ text: 'Thanks!', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error enhancing description:', error);
+      Alert.alert(
+        '❌ Enhancement Failed',
+        'Could not enhance the description. Please check your internet connection and try again.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    } finally {
+      setIsEnhancingDescription(false);
+    }
   };
 
   // Real-world location search using Google Places API
@@ -1121,14 +1170,45 @@ const CreateEventScreen: React.FC = () => {
           icon="star-outline"
         />
 
-        <InputField
-          label="Description (Optional)"
-          value={form.description}
-          onChangeText={(text) => updateForm('description', text)}
-          placeholder="Tell people more about your event..."
-          icon="document-text-outline"
-          multiline={true}
-        />
+        {/* Description with AI Enhancement */}
+        <View style={styles.inputContainer}>
+          <View style={styles.inputLabelContainer}>
+            <Ionicons name="document-text-outline" size={16} color="rgba(255, 255, 255, 0.8)" />
+            <Text style={styles.inputLabel}>Description (Optional)</Text>
+            {form.description.trim() && form.name.trim() && ENV.ENABLE_VOICE_EVENTS && (
+              <TouchableOpacity 
+                style={styles.enhanceButton}
+                onPress={enhanceDescription}
+                disabled={isEnhancingDescription}
+                activeOpacity={0.8}
+              >
+                <BlurView intensity={60} style={styles.enhanceButtonBlur}>
+                  <View style={styles.enhanceButtonContent}>
+                    {isEnhancingDescription ? (
+                      <Ionicons name="sync" size={14} color="rgba(255, 255, 255, 0.9)" />
+                    ) : (
+                      <Ionicons name="sparkles" size={14} color="rgba(255, 255, 255, 0.9)" />
+                    )}
+                    <Text style={styles.enhanceButtonText}>
+                      {isEnhancingDescription ? 'Enhancing...' : 'AI Enhance'}
+                    </Text>
+                  </View>
+                </BlurView>
+              </TouchableOpacity>
+            )}
+          </View>
+          <BlurView intensity={80} style={styles.inputBlur}>
+            <TextInput
+              style={[styles.textInput, styles.textInputMultiline]}
+              value={form.description}
+              onChangeText={(text) => updateForm('description', text)}
+              placeholder="Tell people more about your event..."
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              multiline={true}
+              numberOfLines={4}
+            />
+          </BlurView>
+        </View>
 
         {/* Privacy Selection */}
         <View style={styles.inputContainer}>
@@ -3425,6 +3505,30 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.white,
     fontWeight: FontWeight.bold,
+  },
+  enhanceButton: {
+    marginLeft: 'auto',
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+  },
+  enhanceButtonBlur: {
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+  },
+  enhanceButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    backgroundColor: 'rgba(124, 58, 237, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.4)',
+    gap: Spacing.xs,
+  },
+  enhanceButtonText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.medium,
+    color: 'rgba(255, 255, 255, 0.9)',
   },
 
 });

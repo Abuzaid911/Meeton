@@ -238,6 +238,69 @@ Voice command to parse: "${transcription}"`;
       "Keep background noise to a minimum"
     ];
   }
+
+  /**
+   * Enhance a basic event description with AI
+   */
+  static async enhanceEventDescription(basicDescription: string, eventType: string, eventName: string): Promise<string> {
+    try {
+      if (!ENV.OPENAI_API_KEY || !ENV.OPENAI_API_KEY.startsWith('sk-')) {
+        return basicDescription; // Return original if no API key
+      }
+
+      const prompt = `You are an expert event planner. Enhance this basic event description to make it more engaging and appealing, while keeping it concise (2-3 sentences max).
+
+Event Name: ${eventName}
+Event Type: ${eventType}
+Current Description: ${basicDescription}
+
+Guidelines:
+- Keep the same core information
+- Make it more exciting and engaging
+- Add appropriate enthusiasm for the event type
+- Keep it under 150 characters for mobile display
+- Use action words and positive language
+
+Enhanced description:`;
+
+      const response = await fetch(this.OPENAI_CHAT_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ENV.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a creative event planner. Always respond with just the enhanced description, no extra text.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 100,
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to enhance description:', response.statusText);
+        return basicDescription;
+      }
+
+      const result = await response.json();
+      const enhancedDescription = result.choices?.[0]?.message?.content?.trim();
+
+      return enhancedDescription && enhancedDescription.length > 0 ? enhancedDescription : basicDescription;
+
+    } catch (error) {
+      console.error('Error enhancing description:', error);
+      return basicDescription; // Fallback to original
+    }
+  }
 }
 
 // Convenience export for the main processing function
