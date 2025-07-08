@@ -11,6 +11,9 @@ import {
   Modal,
   TextInput,
   Dimensions,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ImageService, { EventPhoto, ImageUploadProgress } from '../../services/imageService';
@@ -432,7 +435,7 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
               </Text>
             </TouchableOpacity>
 
-            {!batchUploadMode && (
+            {/* {!batchUploadMode && (
               <TouchableOpacity 
                 style={styles.modalOption} 
                 onPress={() => {
@@ -445,7 +448,7 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
                 <Ionicons name="albums" size={24} color="#007AFF" />
                 <Text style={styles.modalOptionText}>Upload Multiple Photos</Text>
               </TouchableOpacity>
-            )}
+            )} */}
             
             <TouchableOpacity 
               style={[styles.modalOption, styles.cancelOption]} 
@@ -469,49 +472,60 @@ const EventPhotosGallery: React.FC<EventPhotosGalleryProps> = ({
         animationType="slide"
         onRequestClose={() => setShowCaptionModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Caption</Text>
-            
-            {selectedImageUri && (
-              <Image
-                source={{ uri: selectedImageUri }}
-                style={styles.previewImage}
-                resizeMode="cover"
-              />
-            )}
-            
-            <TextInput
-              style={styles.captionInput}
-              placeholder="Write a caption for your photo..."
-              value={caption}
-              onChangeText={setCaption}
-              multiline
-              maxLength={500}
-              textAlignVertical="top"
-            />
-            
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]} 
-                onPress={() => {
-                  setShowCaptionModal(false);
-                  setSelectedImageUri(null);
-                  setCaption('');
-                }}
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.captionModalContent}>
+              <ScrollView
+                contentContainerStyle={styles.captionScrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.uploadButton]} 
-                onPress={uploadPhoto}
-              >
-                <Text style={styles.uploadButtonText}>Upload</Text>
-              </TouchableOpacity>
+                <Text style={styles.modalTitle}>Add Caption</Text>
+                
+                {selectedImageUri && (
+                  <Image
+                    source={{ uri: selectedImageUri }}
+                    style={styles.previewImage}
+                    resizeMode="cover"
+                  />
+                )}
+                
+                <TextInput
+                  style={styles.captionInput}
+                  placeholder="Write a caption for your photo..."
+                  value={caption}
+                  onChangeText={setCaption}
+                  multiline
+                  maxLength={500}
+                  textAlignVertical="top"
+                />
+                
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.cancelButton]} 
+                    onPress={() => {
+                      setShowCaptionModal(false);
+                      setSelectedImageUri(null);
+                      setCaption('');
+                    }}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.uploadButton]} 
+                    onPress={uploadPhoto}
+                  >
+                    <Text style={styles.uploadButtonText}>Upload</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -601,9 +615,11 @@ const styles = StyleSheet.create({
   },
   addButton: {
     borderWidth: 2,
-    borderColor: '#007AFF',
-    borderStyle: 'dashed',
+    borderColor: '#f8f9fa',
+    borderStyle: 'solid',
     backgroundColor: '#f8f9fa',
+    opacity: 0.8,
+    borderRadius: 8,
   },
   addButtonContent: {
     flex: 1,
@@ -647,7 +663,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -658,31 +674,34 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 20,
-    color: '#333',
+    color: '#f8f9fa',
   },
   modalOption: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 20,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#000',
     borderRadius: 12,
     marginBottom: 12,
+    borderColor: '#fff',
+    borderWidth: 1,
   },
   modalOptionText: {
     fontSize: 16,
     marginLeft: 12,
-    color: '#333',
+    color: '#fff',
   },
   cancelOption: {
-    backgroundColor: '#fff',
+    backgroundColor: '#000',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#fff',
     marginTop: 8,
+    
   },
   cancelText: {
     fontSize: 16,
-    color: '#666',
+    color: '#fff',
     textAlign: 'center',
     flex: 1,
   },
@@ -782,6 +801,17 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 14,
+  },
+  captionModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    minHeight: '50%',
+  },
+  captionScrollContent: {
+    padding: 20,
+    paddingBottom: 40,
   },
 });
 

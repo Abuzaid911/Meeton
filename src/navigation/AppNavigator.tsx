@@ -126,7 +126,7 @@ function HomeStack() {
       <Stack.Screen 
         name="EventPhotos" 
         component={EventPhotosScreen}
-        options={{ title: 'Photos' }}
+        options={{ title: 'Photos', headerShown: false }}
       />
     </Stack.Navigator>
   );

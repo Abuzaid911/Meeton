@@ -21,6 +21,7 @@ import {
   Vibration,
   Keyboard,
   TouchableWithoutFeedback,
+  ActivityIndicator,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +33,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLocation } from '../../contexts/LocationContext';
 import { useRSVP } from '../../contexts/RSVPContext';
 import APIService from '../../services/api';
+import ImageService, { EventPhoto } from '../../services/imageService';
 import EventPhotosGallery from '../../components/events/EventPhotosGallery';
 import { LocationSharingComponent } from '../../components/location/LocationSharingComponent';
 import { NearbyUsersComponent } from '../../components/location/NearbyUsersComponent';
@@ -130,6 +132,24 @@ const EventDetailsScreen: React.FC = () => {
   } | null>(null);
   const [loadingFriendship, setLoadingFriendship] = useState(false);
   const [modalAnimation] = useState(new Animated.Value(0));
+  const [eventPhotos, setEventPhotos] = useState<EventPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(true);
+
+  // Load event photos
+  const loadEventPhotos = async () => {
+    if (!eventId) return;
+    
+    try {
+      setPhotosLoading(true);
+      const response = await ImageService.getEventPhotos(eventId, 1, 12); // Load first 12 photos
+      setEventPhotos(response.photos || []);
+    } catch (error) {
+      console.error('Failed to load event photos:', error);
+      setEventPhotos([]);
+    } finally {
+      setPhotosLoading(false);
+    }
+  };
 
   // Load event details on mount and when screen comes back into focus
   useFocusEffect(
@@ -139,6 +159,7 @@ const EventDetailsScreen: React.FC = () => {
       console.log('🎯 [RSVP DEBUG] Current event has:', event?.attendees?.length || 0, 'attendees');
       
       loadEventDetails();
+      loadEventPhotos();
     }, [eventId])
   );
 
@@ -993,34 +1014,56 @@ const EventDetailsScreen: React.FC = () => {
                     </TouchableOpacity>
                   </View>
                   
-                  {event.photos && event.photos.length > 0 ? (
+                  {eventPhotos && eventPhotos.length > 0 ? (
                     <View style={styles.photoGrid}>
-                      {event.photos.slice(0, 6).map((photo, index) => (
+                      {eventPhotos.slice(0, 6).map((photo, index) => (
                         <TouchableOpacity 
                           key={photo.id || index}
                           style={styles.photoContainer}
                           onPress={() => navigation.navigate('EventPhotos', { eventId, selectedPhotoIndex: index })}
                         >
-                          <Image source={{ uri: photo.imageUrl }} style={styles.photoThumbnail} />
+                          <Image 
+                            source={{ uri: ImageService.getOptimizedImageUrl(photo.imageUrl, 'small') }} 
+                            style={styles.photoThumbnail} 
+                          />
+                          {/* User overlay */}
+                          <View style={styles.photoOverlay}>
+                            <Image
+                              source={{ 
+                                uri: photo.user.image 
+                                  ? ImageService.getOptimizedImageUrl(photo.user.image, 'thumbnail')
+                                  : 'https://via.placeholder.com/20x20?text=U'
+                              }}
+                              style={styles.photoUserAvatar}
+                            />
+                          </View>
                         </TouchableOpacity>
                       ))}
-                      {event.photos.length > 6 && (
+                      {eventPhotos.length > 6 && (
                         <TouchableOpacity 
                           style={styles.morePhotosContainer}
                           onPress={() => navigation.navigate('EventPhotos', { eventId })}
                         >
                           <View style={styles.morePhotosOverlay}>
-                            <Text style={styles.morePhotosText}>+{event.photos.length - 6}</Text>
+                            <Text style={styles.morePhotosText}>+{eventPhotos.length - 6}</Text>
                           </View>
                         </TouchableOpacity>
                       )}
                     </View>
+                  ) : photosLoading ? (
+                    <View style={styles.loadingPhotosContainer}>
+                      <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
+                      <Text style={styles.loadingPhotosText}>Loading photos...</Text>
+                    </View>
                   ) : (
-                    <View style={styles.noPhotosContainer}>
+                    <TouchableOpacity 
+                      style={styles.noPhotosContainer}
+                      onPress={() => navigation.navigate('EventPhotos', { eventId })}
+                    >
                       <Ionicons name="camera-outline" size={40} color="rgba(255,255,255,0.5)" />
                       <Text style={styles.noPhotosText}>No photos yet</Text>
-                      <Text style={styles.noPhotosSubtext}>Share memories from this event!</Text>
-                    </View>
+                      <Text style={styles.noPhotosSubtext}>Be the first to share memories!</Text>
+                    </TouchableOpacity>
                   )}
                 </View>
               </BlurView>
@@ -1328,34 +1371,56 @@ const EventDetailsScreen: React.FC = () => {
                     </TouchableOpacity>
                   </View>
                   
-                  {event.photos && event.photos.length > 0 ? (
+                  {eventPhotos && eventPhotos.length > 0 ? (
                     <View style={styles.photoGrid}>
-                      {event.photos.slice(0, 6).map((photo, index) => (
+                      {eventPhotos.slice(0, 6).map((photo, index) => (
                         <TouchableOpacity 
                           key={photo.id || index}
                           style={styles.photoContainer}
                           onPress={() => navigation.navigate('EventPhotos', { eventId, selectedPhotoIndex: index })}
                         >
-                          <Image source={{ uri: photo.imageUrl }} style={styles.photoThumbnail} />
+                          <Image 
+                            source={{ uri: ImageService.getOptimizedImageUrl(photo.imageUrl, 'small') }} 
+                            style={styles.photoThumbnail} 
+                          />
+                          {/* User overlay */}
+                          <View style={styles.photoOverlay}>
+                            <Image
+                              source={{ 
+                                uri: photo.user.image 
+                                  ? ImageService.getOptimizedImageUrl(photo.user.image, 'thumbnail')
+                                  : 'https://via.placeholder.com/20x20?text=U'
+                              }}
+                              style={styles.photoUserAvatar}
+                            />
+                          </View>
                         </TouchableOpacity>
                       ))}
-                      {event.photos.length > 6 && (
+                      {eventPhotos.length > 6 && (
                         <TouchableOpacity 
                           style={styles.morePhotosContainer}
                           onPress={() => navigation.navigate('EventPhotos', { eventId })}
                         >
                           <View style={styles.morePhotosOverlay}>
-                            <Text style={styles.morePhotosText}>+{event.photos.length - 6}</Text>
+                            <Text style={styles.morePhotosText}>+{eventPhotos.length - 6}</Text>
                           </View>
                         </TouchableOpacity>
                       )}
                     </View>
+                  ) : photosLoading ? (
+                    <View style={styles.loadingPhotosContainer}>
+                      <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
+                      <Text style={styles.loadingPhotosText}>Loading photos...</Text>
+                    </View>
                   ) : (
-                    <View style={styles.noPhotosContainer}>
+                    <TouchableOpacity 
+                      style={styles.noPhotosContainer}
+                      onPress={() => navigation.navigate('EventPhotos', { eventId })}
+                    >
                       <Ionicons name="camera-outline" size={40} color="rgba(255,255,255,0.5)" />
                       <Text style={styles.noPhotosText}>No photos yet</Text>
-                      <Text style={styles.noPhotosSubtext}>Share memories from this event!</Text>
-                    </View>
+                      <Text style={styles.noPhotosSubtext}>Be the first to share memories!</Text>
+                    </TouchableOpacity>
                   )}
                 </View>
               </BlurView>
@@ -2726,6 +2791,34 @@ const styles = StyleSheet.create({
   rsvpModalScrollContent: {
     padding: Spacing.xl,
     paddingBottom: Spacing.xxl,
+  },
+  loadingPhotosContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+  },
+  loadingPhotosText: {
+    fontSize: FontSize.sm,
+    color: Colors.gray,
+    marginTop: Spacing.xs,
+  },
+  photoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoUserAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.white,
   },
 });
 
