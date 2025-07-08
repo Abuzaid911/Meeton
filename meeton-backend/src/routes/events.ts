@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { eventController } from '../controllers/eventController';
-import { authenticate } from '../middleware/auth';
+import { authenticate, optionalAuth } from '../middleware/auth';
 import { validateBody } from '../middleware/validation';
 import { eventCreationLimiter, apiLimiter } from '../middleware/rateLimit';
 import { createEventSchema } from '../utils/validation';
@@ -28,6 +28,7 @@ console.log('🔍 eventController.uploadEventPhoto:', eventController.uploadEven
  */
 router.get('/', 
   apiLimiter, 
+  optionalAuth,  // Use optional auth to get user context if available
   eventController.getEvents
 );
 
@@ -76,6 +77,7 @@ router.get('/user/:userId',
  */
 router.get('/:id', 
   apiLimiter, 
+  optionalAuth,  // Use optional auth for proper privacy filtering
   eventController.getEventById
 );
 

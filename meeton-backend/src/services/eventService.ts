@@ -329,7 +329,7 @@ class EventService {
     page: number;
     totalPages: number;
   }> {
-    console.log('🔍 [SERVICE] getEvents called with:', { options, userId });
+    console.log('🔍 [SERVICE] getEvents - userId:', userId);
 
     const {
       page = 1,
@@ -344,8 +344,6 @@ class EventService {
       sortBy = 'date',
       sortOrder = 'asc',
     } = options;
-
-    console.log('🔍 [SERVICE] Extracted privacyLevel:', { privacyLevel, type: typeof privacyLevel, truthy: !!privacyLevel });
 
     const skip = (page - 1) * limit;
 
