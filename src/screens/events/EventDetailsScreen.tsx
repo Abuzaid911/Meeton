@@ -168,6 +168,15 @@ const EventDetailsScreen: React.FC = () => {
   const [modalAnimation] = useState(new Animated.Value(0));
   const [eventPhotos, setEventPhotos] = useState<EventPhoto[]>([]);
   const [photosLoading, setPhotosLoading] = useState(true);
+  const [weatherData, setWeatherData] = useState<{
+    icon: string;
+    temp: string;
+    condition: string;
+    humidity?: number;
+    windSpeed?: number;
+    feelsLike?: number;
+  } | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(true);
 
   // Load event photos
   const loadEventPhotos = async () => {
@@ -182,6 +191,30 @@ const EventDetailsScreen: React.FC = () => {
       setEventPhotos([]);
     } finally {
       setPhotosLoading(false);
+    }
+  };
+
+  // Load weather data
+  const loadWeatherData = async (eventData?: Event) => {
+    const targetEvent = eventData || event;
+    if (!targetEvent) return;
+    
+    try {
+      setWeatherLoading(true);
+      console.log('🌤️ Loading weather for event:', targetEvent.name);
+      const weather = await getWeatherForEvent(targetEvent);
+      console.log('🌤️ Weather loaded:', weather);
+      setWeatherData(weather);
+    } catch (error) {
+      console.error('Failed to load weather:', error);
+      // Set fallback weather data
+      setWeatherData({
+        icon: 'sunny',
+        temp: '22°C',
+        condition: 'Pleasant weather expected',
+      });
+    } finally {
+      setWeatherLoading(false);
     }
   };
 
@@ -211,6 +244,9 @@ const EventDetailsScreen: React.FC = () => {
         
         // Type assertion since formatDate handles both string and Date types
         setEvent(foundEvent as unknown as Event);
+        
+        // Load weather data for this event
+        await loadWeatherData(foundEvent as unknown as Event);
         
         // Find current user's RSVP status and update context
         const userAttendee = foundEvent.attendees?.find((a: any) => a.user.id === user?.id);
@@ -945,18 +981,40 @@ const EventDetailsScreen: React.FC = () => {
                     <Text style={styles.sectionTitle}>Weather</Text>
                     <Text style={styles.eventWeatherTime}>Event day forecast</Text>
                   </View>
-                  <View style={styles.eventWeatherInfo}>
-                    <View style={styles.eventWeatherIcon}>
-                      <Ionicons name={weather.icon as any} size={40} color={Colors.white} />
+                  {weatherLoading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
+                      <Text style={styles.loadingText}>Loading weather...</Text>
                     </View>
-                    <View style={styles.eventWeatherDetails}>
-                      <Text style={styles.eventWeatherTemp}>{weather.temp}</Text>
-                      <Text style={styles.eventWeatherCondition}>{weather.condition}</Text>
+                  ) : weatherData ? (
+                    <View style={styles.eventWeatherInfo}>
+                      <View style={styles.eventWeatherIcon}>
+                        <Ionicons name={weatherData.icon as any} size={40} color={Colors.white} />
+                      </View>
+                      <View style={styles.eventWeatherDetails}>
+                        <Text style={styles.eventWeatherTemp}>{weatherData.temp}</Text>
+                        <Text style={styles.eventWeatherCondition}>{weatherData.condition}</Text>
+                      </View>
+                      <View style={styles.eventWeatherExtras}>
+                        <Text style={styles.eventWeatherExtra}>
+                          {weatherData.humidity ? `Humidity: ${weatherData.humidity}%` : 'Perfect for the event!'}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.eventWeatherExtras}>
-                      <Text style={styles.eventWeatherExtra}>Perfect for the event!</Text>
+                  ) : (
+                    <View style={styles.eventWeatherInfo}>
+                      <View style={styles.eventWeatherIcon}>
+                        <Ionicons name="sunny" size={40} color={Colors.white} />
+                      </View>
+                      <View style={styles.eventWeatherDetails}>
+                        <Text style={styles.eventWeatherTemp}>22°C</Text>
+                        <Text style={styles.eventWeatherCondition}>Weather unavailable</Text>
+                      </View>
+                      <View style={styles.eventWeatherExtras}>
+                        <Text style={styles.eventWeatherExtra}>Check weather closer to event</Text>
+                      </View>
                     </View>
-                  </View>
+                  )}
                 </View>
               </BlurView>
             </View>
@@ -1302,18 +1360,40 @@ const EventDetailsScreen: React.FC = () => {
                     <Text style={styles.sectionTitle}>Weather</Text>
                     <Text style={styles.weatherTime}>Event day forecast</Text>
                   </View>
-                  <View style={styles.weatherInfo}>
-                    <View style={styles.weatherIcon}>
-                      <Ionicons name={weather.icon as any} size={40} color={Colors.white} />
+                  {weatherLoading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
+                      <Text style={styles.loadingText}>Loading weather...</Text>
                     </View>
-                    <View style={styles.weatherDetails}>
-                      <Text style={styles.weatherTemp}>{weather.temp}</Text>
-                      <Text style={styles.weatherCondition}>{weather.condition}</Text>
+                  ) : weatherData ? (
+                    <View style={styles.weatherInfo}>
+                      <View style={styles.weatherIcon}>
+                        <Ionicons name={weatherData.icon as any} size={40} color={Colors.white} />
+                      </View>
+                      <View style={styles.weatherDetails}>
+                        <Text style={styles.weatherTemp}>{weatherData.temp}</Text>
+                        <Text style={styles.weatherCondition}>{weatherData.condition}</Text>
+                      </View>
+                      <View style={styles.weatherExtras}>
+                        <Text style={styles.weatherExtra}>
+                          {weatherData.humidity ? `Humidity: ${weatherData.humidity}%` : 'Perfect for the event!'}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.weatherExtras}>
-                      <Text style={styles.weatherExtra}>Perfect for the event!</Text>
+                  ) : (
+                    <View style={styles.weatherInfo}>
+                      <View style={styles.weatherIcon}>
+                        <Ionicons name="sunny" size={40} color={Colors.white} />
+                      </View>
+                      <View style={styles.weatherDetails}>
+                        <Text style={styles.weatherTemp}>22°C</Text>
+                        <Text style={styles.weatherCondition}>Weather unavailable</Text>
+                      </View>
+                      <View style={styles.weatherExtras}>
+                        <Text style={styles.weatherExtra}>Check weather closer to event</Text>
+                      </View>
                     </View>
-                  </View>
+                  )}
                 </View>
               </BlurView>
             </View>
