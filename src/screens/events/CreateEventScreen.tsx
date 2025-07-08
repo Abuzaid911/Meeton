@@ -382,7 +382,6 @@ const CreateEventScreen: React.FC = () => {
       ['description', 'description'],
       ['date', 'date'],
       ['time', 'time'],
-      ['location', 'location'],
       ['type', 'type'],
     ];
 
@@ -394,7 +393,33 @@ const CreateEventScreen: React.FC = () => {
 
     // Set location display name if location was provided
     if (voiceData.location) {
+      console.log('📍 Setting location from voice:', voiceData.location);
       updateForm('locationDisplayName', voiceData.location);
+      updateForm('location', voiceData.location); // Also set as the main location
+      setLocationQuery(voiceData.location); // This makes it show in the UI
+      console.log('📍 Location query set to:', voiceData.location);
+      
+      // Try to geocode the location if Google Places API is available
+      if (locationSearchService.isConfigured()) {
+        console.log('🌍 Attempting to geocode location:', voiceData.location);
+        locationSearchService.searchLocations(voiceData.location, 1)
+          .then(suggestions => {
+            if (suggestions.length > 0) {
+              const suggestion = suggestions[0];
+              console.log('✅ Found coordinates for location:', suggestion);
+              updateForm('coordinates', {
+                latitude: suggestion.latitude,
+                longitude: suggestion.longitude
+              });
+              updateForm('location', suggestion.address);
+              updateForm('locationDisplayName', suggestion.name);
+              setLocationQuery(suggestion.name);
+            }
+          })
+          .catch(error => {
+            console.warn('⚠️ Could not geocode location, using text only:', error);
+          });
+      }
     }
 
     // Show success message and proceed to next step if complete
