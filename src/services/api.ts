@@ -665,7 +665,7 @@ export class APIService {
       const endpoint = queryString ? `/events?${queryString}` : '/events';
 
       const response = await this.makeRequest<Event[]>(endpoint, {
-        requireAuth: false, // Events can be viewed without auth (depending on privacy)
+        requireAuth: this.isAuthenticated(), // Use auth if user is logged in for proper privacy filtering
       });
 
       if (response.success && response.data) {
@@ -870,7 +870,7 @@ export class APIService {
     try {
       // Get events data which includes user information
       const response = await this.makeRequest<Event[]>('/events', {
-        requireAuth: false,
+        requireAuth: this.isAuthenticated(), // Use auth to get all events user can see
       });
 
       if (response.success && response.data) {
@@ -959,7 +959,7 @@ export class APIService {
       });
 
       const response = await this.makeRequest<Event[]>(`/events?${queryParams}`, {
-        requireAuth: false,
+        requireAuth: this.isAuthenticated(), // Use auth if user is logged in for proper privacy filtering
       });
 
       if (response.success && response.data) {

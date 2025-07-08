@@ -72,13 +72,13 @@ const EventListScreen: React.FC = () => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [filter]);
+  }, [filter, user]);
 
   // Reload events when screen comes into focus (e.g. after creating a new event)
   useFocusEffect(
     React.useCallback(() => {
       loadEvents();
-    }, [filter])
+    }, [filter, user])
   );
 
   const loadEvents = async () => {

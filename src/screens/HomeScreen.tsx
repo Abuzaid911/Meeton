@@ -250,13 +250,13 @@ const HomeScreen: React.FC = () => {
 
   useEffect(() => {
     loadEvents();
-  }, []);
+  }, [user]);
 
   // Refresh events when screen comes into focus (e.g. after creating a new event)
   useFocusEffect(
     React.useCallback(() => {
       loadEvents();
-    }, [])
+    }, [user])
   );
 
   const handleEventPress = (eventId: string) => {
