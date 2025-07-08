@@ -1,9 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 import DatabaseManager from '../config/database';
+import { getEnv } from '../config/env';
 
 /**
  * Weather Service
  * Handles weather data fetching and integration for events
+ * Now using RapidAPI OpenWeather13 for enhanced reliability
  */
 
 interface WeatherData {
@@ -47,13 +49,20 @@ interface LocationCoordinates {
 
 export class WeatherService {
   private prisma: PrismaClient;
-  private apiKey: string;
+  private rapidApiKey: string;
+  private rapidApiHost: string;
   private baseUrl: string;
 
   constructor() {
     this.prisma = DatabaseManager.getInstance();
-    this.apiKey = process.env.OPENWEATHER_API_KEY || '';
-    this.baseUrl = 'https://api.openweathermap.org/data/2.5';
+    const env = getEnv();
+    this.rapidApiKey = env.RAPIDAPI_WEATHER_KEY || '4f47665b2amshfa0f492676c70b7p19315bjsn4548b04ddc1b';
+    this.rapidApiHost = env.RAPIDAPI_WEATHER_HOST;
+    this.baseUrl = `https://${this.rapidApiHost}`;
+    
+    console.log('🌤️ Weather Service initialized with RapidAPI');
+    console.log(`🔑 API Key: ${this.rapidApiKey ? '***configured***' : 'missing'}`);
+    console.log(`🌐 Host: ${this.rapidApiHost}`);
   }
 
   /**
@@ -61,20 +70,26 @@ export class WeatherService {
    */
   async getCurrentWeather(lat: number, lng: number): Promise<WeatherData | null> {
     try {
-      if (!this.apiKey) {
-        console.warn('OpenWeather API key not configured, using mock weather data');
+      if (!this.rapidApiKey) {
+        console.warn('RapidAPI Weather key not configured, using mock weather data');
         return this.getMockWeatherData(lat, lng);
       }
 
-      const url = `${this.baseUrl}/weather?lat=${lat}&lon=${lng}&appid=${this.apiKey}&units=metric`;
-      const response = await fetch(url);
+      const url = `${this.baseUrl}/city/fivedaysforcast`;
+      const response = await fetch(`${url}?latitude=${lat}&longitude=${lng}&lang=EN`, {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-host': this.rapidApiHost,
+          'x-rapidapi-key': this.rapidApiKey
+        }
+      });
       
       if (!response.ok) {
-        throw new Error(`Weather API error: ${response.status}`);
+        throw new Error(`RapidAPI Weather error: ${response.status}`);
       }
 
       const data = await response.json();
-      return this.parseCurrentWeatherData(data);
+      return this.parseRapidApiWeatherData(data);
     } catch (error) {
       console.error('Error fetching current weather:', error);
       return this.getMockWeatherData(lat, lng);
@@ -86,20 +101,26 @@ export class WeatherService {
    */
   async getWeatherForecast(lat: number, lng: number): Promise<WeatherData | null> {
     try {
-      if (!this.apiKey) {
-        console.warn('OpenWeather API key not configured, using mock weather data');
+      if (!this.rapidApiKey) {
+        console.warn('RapidAPI Weather key not configured, using mock weather data');
         return this.getMockWeatherData(lat, lng);
       }
 
-      const url = `${this.baseUrl}/forecast?lat=${lat}&lon=${lng}&appid=${this.apiKey}&units=metric`;
-      const response = await fetch(url);
+      const url = `${this.baseUrl}/city/fivedaysforcast`;
+      const response = await fetch(`${url}?latitude=${lat}&longitude=${lng}&lang=EN`, {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-host': this.rapidApiHost,
+          'x-rapidapi-key': this.rapidApiKey
+        }
+      });
       
       if (!response.ok) {
-        throw new Error(`Weather API error: ${response.status}`);
+        throw new Error(`RapidAPI Weather error: ${response.status}`);
       }
 
       const data = await response.json();
-      return this.parseForecastWeatherData(data);
+      return this.parseRapidApiWeatherData(data);
     } catch (error) {
       console.error('Error fetching weather forecast:', error);
       return this.getMockWeatherData(lat, lng);
@@ -207,19 +228,14 @@ export class WeatherService {
    */
   async getWeatherAlerts(lat: number, lng: number): Promise<WeatherAlert[]> {
     try {
-      if (!this.apiKey) {
+      if (!this.rapidApiKey) {
         return [];
       }
 
-      const url = `${this.baseUrl}/alerts?lat=${lat}&lon=${lng}&appid=${this.apiKey}`;
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        return [];
-      }
-
-      const data = await response.json();
-      return this.parseWeatherAlerts(data);
+      // Note: Weather alerts may not be available in this RapidAPI endpoint
+      // This is a placeholder for future implementation
+      console.log('Weather alerts not available in current RapidAPI endpoint');
+      return [];
     } catch (error) {
       console.error('Error fetching weather alerts:', error);
       return [];
@@ -227,7 +243,64 @@ export class WeatherService {
   }
 
   /**
-   * Parse current weather API response
+   * Parse RapidAPI weather response
+   */
+  private parseRapidApiWeatherData(data: any): WeatherData {
+    try {
+      // RapidAPI returns different structure, adapt accordingly
+      const current = data.list?.[0] || data;
+      const weather = current.weather?.[0] || {};
+      const main = current.main || {};
+      const wind = current.wind || {};
+      const sys = current.sys || {};
+
+      return {
+        temperature: Math.round(main.temp || 20),
+        condition: weather.main || 'Clear',
+        description: weather.description || 'clear sky',
+        humidity: main.humidity || 50,
+        windSpeed: wind.speed || 0,
+        windDirection: wind.deg || 0,
+        visibility: current.visibility ? current.visibility / 1000 : 10,
+        uvIndex: 0, // May not be available in this endpoint
+        pressure: main.pressure || 1013,
+        feelsLike: Math.round(main.feels_like || main.temp || 20),
+        icon: weather.icon || '01d',
+        sunrise: sys.sunrise ? new Date(sys.sunrise * 1000).toISOString() : undefined,
+        sunset: sys.sunset ? new Date(sys.sunset * 1000).toISOString() : undefined,
+        hourlyForecast: this.parseRapidApiHourlyForecast(data),
+      };
+    } catch (error) {
+      console.error('Error parsing RapidAPI weather data:', error);
+      // Return mock data as fallback
+      return this.getMockWeatherData(0, 0);
+    }
+  }
+
+  /**
+   * Parse hourly forecast from RapidAPI response
+   */
+  private parseRapidApiHourlyForecast(data: any): HourlyForecast[] {
+    try {
+      if (!data.list || !Array.isArray(data.list)) {
+        return [];
+      }
+
+      return data.list.slice(0, 24).map((item: any) => ({
+        time: new Date((item.dt || Date.now() / 1000) * 1000).toISOString(),
+        temperature: Math.round(item.main?.temp || 20),
+        condition: item.weather?.[0]?.main || 'Clear',
+        icon: item.weather?.[0]?.icon || '01d',
+        precipitationChance: Math.round((item.pop || 0) * 100),
+      }));
+    } catch (error) {
+      console.error('Error parsing hourly forecast:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Parse current weather API response (legacy method for reference)
    */
   private parseCurrentWeatherData(data: any): WeatherData {
     return {

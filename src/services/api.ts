@@ -1557,6 +1557,78 @@ export class APIService {
   }
 
   // ============================================================================
+  // Weather API Methods (RapidAPI Integration)
+  // ============================================================================
+
+  /**
+   * Get current weather for coordinates
+   */
+  static async getCurrentWeather(lat: number, lng: number): Promise<any> {
+    try {
+      const response = await this.makeRequest(`/weather/current?lat=${lat}&lng=${lng}`, {
+        requireAuth: false,
+        action: 'get current weather',
+      });
+
+      return response.success ? response.data : null;
+    } catch (error) {
+      console.error('Failed to get current weather:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get weather forecast for coordinates
+   */
+  static async getWeatherForecast(lat: number, lng: number): Promise<any> {
+    try {
+      const response = await this.makeRequest(`/weather/forecast?lat=${lat}&lng=${lng}`, {
+        requireAuth: false,
+        action: 'get weather forecast',
+      });
+
+      return response.success ? response.data : null;
+    } catch (error) {
+      console.error('Failed to get weather forecast:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get weather for a specific event
+   */
+  static async getEventWeather(eventId: string): Promise<any> {
+    try {
+      const response = await this.makeRequest(`/weather/event/${eventId}`, {
+        requireAuth: false,
+        action: 'get event weather',
+      });
+
+      return response.success ? response.data : null;
+    } catch (error) {
+      console.error('Failed to get event weather:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get weather alerts for coordinates
+   */
+  static async getWeatherAlerts(lat: number, lng: number): Promise<any[]> {
+    try {
+      const response = await this.makeRequest(`/weather/alerts?lat=${lat}&lng=${lng}`, {
+        requireAuth: false,
+        action: 'get weather alerts',
+      });
+
+      return response.success ? response.data : [];
+    } catch (error) {
+      console.error('Failed to get weather alerts:', error);
+      return [];
+    }
+  }
+
+  // ============================================================================
   // Public API Methods for External Services
   // ============================================================================
 

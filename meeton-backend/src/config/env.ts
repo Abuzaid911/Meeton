@@ -55,6 +55,10 @@ const envSchema = z.object({
   APPLE_TEAM_ID: z.string().optional(),
   APPLE_KEY_ID: z.string().optional(),
   APPLE_PRIVATE_KEY: z.string().optional(),
+  
+  // Weather API (RapidAPI OpenWeather)
+  RAPIDAPI_WEATHER_KEY: z.string().optional(),
+  RAPIDAPI_WEATHER_HOST: z.string().default('open-weather13.p.rapidapi.com'),
 });
 
 export type Environment = z.infer<typeof envSchema>;

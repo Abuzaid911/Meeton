@@ -58,7 +58,7 @@ const CelebrationAnimation: React.FC<CelebrationAnimationProps> = ({
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 300,
+        duration: 1000,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
@@ -249,35 +249,6 @@ const CelebrationAnimation: React.FC<CelebrationAnimationProps> = ({
                 {/* Title and Subtitle */}
                 <Text style={styles.title}>{title}</Text>
                 <Text style={styles.subtitle}>{subtitle}</Text>
-
-                {/* Action Buttons */}
-                <View style={styles.buttonContainer}>
-                  <TouchableOpacity 
-                    style={styles.actionButton}
-                    onPress={onComplete}
-                    activeOpacity={0.8}
-                  >
-                    <BlurView intensity={60} style={styles.buttonBlur}>
-                      <View style={styles.buttonContent}>
-                        <Ionicons name="share-social" size={18} color={Colors.white} />
-                        <Text style={styles.buttonText}>Share Event</Text>
-                      </View>
-                    </BlurView>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity 
-                    style={[styles.actionButton, styles.secondaryButton]}
-                    onPress={onComplete}
-                    activeOpacity={0.8}
-                  >
-                    <BlurView intensity={60} style={styles.buttonBlur}>
-                      <View style={styles.buttonContent}>
-                        <Ionicons name="eye" size={18} color="rgba(255, 255, 255, 0.8)" />
-                        <Text style={[styles.buttonText, styles.secondaryButtonText]}>View Event</Text>
-                      </View>
-                    </BlurView>
-                  </TouchableOpacity>
-                </View>
 
                 {/* Tap to dismiss hint */}
                 <Text style={styles.dismissHint}>Tap anywhere to continue</Text>

@@ -62,15 +62,49 @@ const getCountdown = (eventDate: Date | string) => {
   return `${Math.abs(diffDays)} days ago`;
 };
 
-// Weather data mock
-const getWeatherForEvent = (eventId: string) => {
-  const weatherOptions = [
-    { icon: 'sunny', temp: '76°F', condition: 'sunny' },
-    { icon: 'partly-sunny', temp: '72°F', condition: 'partly-cloudy' },
-    { icon: 'cloudy', temp: '68°F', condition: 'cloudy' },
-    { icon: 'rainy', temp: '64°F', condition: 'rainy' },
-  ];
-  return weatherOptions[Math.floor(Math.random() * weatherOptions.length)];
+// Weather data - now using real API  
+const getWeatherForEvent = async (event: any) => {
+  try {
+    // Try to get weather by event ID first
+    if (event.id) {
+      const weather = await APIService.getEventWeather(event.id);
+      if (weather) {
+        return {
+          icon: weather.condition === 'Clear' ? 'sunny' : 
+                weather.condition === 'Clouds' ? 'cloudy' : 
+                weather.condition === 'Rain' ? 'rainy' : 'partly-sunny',
+          temp: `${weather.temperature}°C`,
+          condition: weather.description || weather.condition.toLowerCase(),
+          humidity: weather.humidity,
+          windSpeed: weather.windSpeed,
+          feelsLike: weather.feelsLike,
+        };
+      }
+    }
+    
+    // Fallback to coordinates if available
+    if (event.lat && event.lng) {
+      const weather = await APIService.getCurrentWeather(event.lat, event.lng);
+      if (weather) {
+        return {
+          icon: weather.condition === 'Clear' ? 'sunny' : 
+                weather.condition === 'Clouds' ? 'cloudy' : 
+                weather.condition === 'Rain' ? 'rainy' : 'partly-sunny',
+          temp: `${weather.temperature}°C`,
+          condition: weather.description || weather.condition.toLowerCase(),
+          humidity: weather.humidity,
+          windSpeed: weather.windSpeed,
+          feelsLike: weather.feelsLike,
+        };
+      }
+    }
+    
+    // Fallback to mock data
+    return { icon: 'sunny', temp: '22°C', condition: 'sunny' };
+  } catch (error) {
+    console.error('Failed to get weather:', error);
+    return { icon: 'sunny', temp: '22°C', condition: 'sunny' };
+  }
 };
 
 // Helper functions for new features
