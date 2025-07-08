@@ -126,6 +126,17 @@ router.post('/:id/rsvp',
 );
 
 /**
+ * Invite users to an event
+ * POST /api/events/:id/invite
+ * Body: { userIds: string[], customMessage?: string }
+ */
+router.post('/:id/invite', 
+  apiLimiter,
+  authenticate,
+  eventController.inviteUsersToEvent
+);
+
+/**
  * Remove attendee from event
  * DELETE /api/events/:id/attendees/:userId
  */

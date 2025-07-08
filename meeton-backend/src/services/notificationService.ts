@@ -373,6 +373,34 @@ export class NotificationService {
   }
 
   /**
+   * Send notification for RSVP to event host
+   */
+  static async sendRSVPNotification(
+    hostId: string,
+    userName: string,
+    rsvp: string,
+    eventName: string,
+    eventId: string
+  ): Promise<boolean> {
+    const rsvpText = rsvp === 'YES' ? 'is going to' : rsvp === 'MAYBE' ? 'might attend' : 'is not going to';
+    
+    return this.sendNotificationToUser(
+      hostId,
+      {
+        title: 'New RSVP',
+        body: `${userName} ${rsvpText} ${eventName}`,
+        data: {
+          type: 'rsvp_update',
+          eventId,
+          rsvp,
+        },
+        actionUrl: `/events/${eventId}`,
+      },
+      'ATTENDEE'
+    );
+  }
+
+  /**
    * Send notification for event update
    */
   static async sendEventUpdateNotification(

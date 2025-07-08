@@ -201,6 +201,38 @@ export class SharingService {
       // Track analytics
       if (userId) {
         analyticsService.trackEventView(link.eventId, userId).catch(console.error);
+        
+        // Send invitation notification to the user who was invited
+        try {
+          const event = await this.prisma.event.findUnique({
+            where: { id: link.eventId },
+            include: {
+              host: {
+                select: {
+                  name: true,
+                  username: true,
+                }
+              }
+            }
+          });
+          
+          if (event && userId !== link.createdBy) {
+            // Import NotificationService dynamically to avoid circular dependency
+            const { NotificationService } = await import('./notificationService');
+            
+            await NotificationService.sendEventInvitationNotification(
+              userId,
+              event.name,
+              event.host.name || event.host.username,
+              event.id
+            );
+            
+            console.log(`📲 [INVITATION] Sent invitation notification to user ${userId} for event ${event.name}`);
+          }
+        } catch (notificationError) {
+          console.error('Failed to send invitation notification:', notificationError);
+          // Don't fail the link usage if notification fails
+        }
       }
 
       return true;

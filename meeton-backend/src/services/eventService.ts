@@ -210,7 +210,7 @@ class EventService {
       console.log('💾 [BACKEND EVENT] Found cached event with', (cachedEvent as any)?.attendees?.length || 0, 'attendees');
       
       // Check privacy permissions
-      if (userId && !this.canUserViewEvent(cachedEvent, userId)) {
+      if (userId && !(await this.canUserViewEvent(cachedEvent, userId))) {
         throw new AuthorizationError('You do not have permission to view this event');
       }
 
@@ -299,7 +299,7 @@ class EventService {
     console.log('✅ [BACKEND EVENT] Database returned event with', event.attendees?.length || 0, 'attendees');
 
     // Check privacy permissions
-    if (userId && !this.canUserViewEvent(event, userId)) {
+    if (userId && !(await this.canUserViewEvent(event, userId))) {
       throw new AuthorizationError('You do not have permission to view this event');
     }
 
@@ -323,7 +323,7 @@ class EventService {
   /**
    * Get events with filtering and pagination
    */
-  async getEvents(options: EventQueryOptions = {}): Promise<{
+  async getEvents(options: EventQueryOptions = {}, userId?: string): Promise<{
     events: Event[];
     total: number;
     page: number;
@@ -357,15 +357,72 @@ class EventService {
 
     if (privacyLevel) {
       where.privacyLevel = privacyLevel;
+    } else if (userId) {
+      // If user is provided, filter by privacy level
+      // For authenticated users, show PUBLIC, FRIENDS_ONLY (if friends), and PRIVATE (if invited)
+      where.OR = [
+        { privacyLevel: PrivacyLevel.PUBLIC },
+        { hostId: userId }, // Always show user's own events
+        {
+          // FRIENDS_ONLY events where user is friends with host
+          privacyLevel: PrivacyLevel.FRIENDS_ONLY,
+          host: {
+            OR: [
+              {
+                sentFriendRequests: {
+                  some: {
+                    receiverId: userId,
+                    status: 'ACCEPTED'
+                  }
+                }
+              },
+              {
+                receivedFriendRequests: {
+                  some: {
+                    senderId: userId,
+                    status: 'ACCEPTED'
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          // PRIVATE events where user is invited (attendee)
+          privacyLevel: PrivacyLevel.PRIVATE,
+          attendees: {
+            some: {
+              userId: userId
+            }
+          }
+        }
+      ];
+    } else {
+      // For unauthenticated users, only show public events
+      where.privacyLevel = PrivacyLevel.PUBLIC;
     }
 
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { location: { contains: search, mode: 'insensitive' } },
-        { category: { contains: search, mode: 'insensitive' } },
-      ];
+      // Apply search to the existing OR clause or create a new one
+      const searchClause = {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+          { location: { contains: search, mode: 'insensitive' } },
+          { category: { contains: search, mode: 'insensitive' } },
+        ]
+      };
+      
+      if (where.OR) {
+        // Combine privacy filtering with search
+        where.AND = [
+          { OR: where.OR },
+          searchClause
+        ];
+        delete where.OR;
+      } else {
+        where.OR = searchClause.OR;
+      }
     }
 
     if (hostId) {
@@ -730,7 +787,7 @@ class EventService {
   /**
    * Check if user can view event based on privacy settings
    */
-  private canUserViewEvent(event: Event, userId: string): boolean {
+  private async canUserViewEvent(event: Event, userId: string): Promise<boolean> {
     // Host can always view their own event
     if (event.hostId === userId) {
       return true;
@@ -741,10 +798,37 @@ class EventService {
       return true;
     }
 
-    // For private/friends-only events, check if user is invited
-    // This would require implementing friend relationships
-    // For now, we'll allow viewing if user is an attendee
-    return true; // Simplified for now
+    // For friends-only events, check if user is friends with host
+    if (event.privacyLevel === PrivacyLevel.FRIENDS_ONLY) {
+      const friendship = await prisma.friendRequest.findFirst({
+        where: {
+          OR: [
+            { senderId: event.hostId, receiverId: userId, status: 'ACCEPTED' },
+            { senderId: userId, receiverId: event.hostId, status: 'ACCEPTED' }
+          ]
+        }
+      });
+      
+      if (!friendship) {
+        return false;
+      }
+    }
+
+    // For private events, only invited users (attendees) can view
+    if (event.privacyLevel === PrivacyLevel.PRIVATE) {
+      const attendee = await prisma.attendee.findUnique({
+        where: {
+          userId_eventId: {
+            userId,
+            eventId: event.id
+          }
+        }
+      });
+      
+      return !!attendee;
+    }
+
+    return true;
   }
 
   /**

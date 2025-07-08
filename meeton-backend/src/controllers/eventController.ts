@@ -32,6 +32,7 @@ class EventController {
     this.getUserEvents = this.getUserEvents.bind(this);
     this.uploadEventPhoto = this.uploadEventPhoto.bind(this);
     this.getEventPhotos = this.getEventPhotos.bind(this);
+    this.inviteUsersToEvent = this.inviteUsersToEvent.bind(this);
   }
 
   /**
@@ -88,7 +89,8 @@ class EventController {
         sortOrder: sortOrder as any,
       };
 
-      const result = await eventService.getEvents(options);
+      // Pass userId for privacy filtering (if authenticated)
+      const result = await eventService.getEvents(options, req.user?.id);
       
       sendSuccess(res, result.events, 'Events retrieved successfully', 200, {
         page: result.page,
@@ -200,8 +202,23 @@ class EventController {
         });
       }
       
-                    // TODO: Add RSVP notification for event host
-       console.log(`📲 RSVP notification needed: ${req.user.name} ${rsvp} for event ${id}`);
+      // Send RSVP notification to event host (async, don't wait for completion)
+      if (rsvp !== 'PENDING') {
+        const event = await eventService.getEventById(id);
+        if (event && event.hostId !== req.user.id) {
+          // Don't notify the host if they're RSVPing to their own event
+          NotificationService.sendRSVPNotification(
+            event.hostId,
+            req.user.name || req.user.username,
+            rsvp,
+            event.name,
+            id
+          ).catch(error => {
+            console.error('Failed to send RSVP notification:', error);
+          });
+          console.log(`📲 [RSVP NOTIFICATION] Sent ${rsvp} notification to host ${event.hostId} for event ${event.name}`);
+        }
+      }
       
       // Return updated event data with all attendees for frontend consistency
       console.log('📡 [BACKEND RSVP] Fetching updated event data...');
@@ -335,6 +352,78 @@ class EventController {
       const { id: eventId } = req.params;
       const photos = await eventService.getEventPhotos(eventId);
       sendSuccess(res, photos, 'Event photos retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Invite users to an event
+   * POST /api/events/:id/invite
+   */
+  async inviteUsersToEvent(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new AuthenticationError('Authentication required');
+      }
+
+      const { id: eventId } = req.params;
+      const { userIds, customMessage } = req.body;
+
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        throw new ValidationError('User IDs array is required and cannot be empty');
+      }
+
+      // Validate event exists and user has permission to invite
+      const event = await eventService.getEventById(eventId, req.user.id);
+      if (!event) {
+        throw new NotFoundError('Event not found');
+      }
+
+      // Only host or attendees can invite others (depending on privacy level)
+      const isHost = event.hostId === req.user.id;
+      const isAttendee = (event as any).attendees?.some((a: any) => 
+        a.user.id === req.user?.id && (a.rsvp === 'YES' || a.rsvp === 'MAYBE')
+      );
+      
+      if (!isHost && !isAttendee) {
+        throw new AuthorizationError('Only event host or attendees can invite others');
+      }
+
+      // For private events, only host can invite
+      if (event.privacyLevel === 'PRIVATE' && !isHost) {
+        throw new AuthorizationError('Only the host can invite users to private events');
+      }
+
+      // Send notifications to invited users
+      const invitationPromises = userIds.map(async (userId: string) => {
+        try {
+          await NotificationService.sendEventInvitationNotification(
+            userId,
+            event.name,
+            req.user!.name || req.user!.username,
+            eventId
+          );
+          return { userId, success: true };
+        } catch (error) {
+          console.error(`Failed to send invitation to user ${userId}:`, error);
+          return { 
+            userId, 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error'
+          };
+        }
+      });
+
+      const results = await Promise.all(invitationPromises);
+      const successful = results.filter(r => r.success).length;
+      const failed = results.length - successful;
+
+      sendSuccess(res, {
+        invitationsSent: successful,
+        invitationsFailed: failed,
+        results: results
+      }, `${successful} invitation(s) sent successfully${failed > 0 ? `, ${failed} failed` : ''}`);
     } catch (error) {
       next(error);
     }
