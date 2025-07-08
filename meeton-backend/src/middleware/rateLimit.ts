@@ -277,6 +277,11 @@ export const eventCreationLimiter = createRedisRateLimit({
     },
   },
   keyGenerator: (req: Request) => generateRateLimitKey(req, 'event-creation'),
+  skip: (req: Request) => {
+    // Always skip rate limiting for event creation during development
+    console.log('🔍 Event creation rate limiter - Skipping for development');
+    return true; // Always skip rate limiting for event creation
+  },
 });
 
 // Friend requests - moderate limiting
