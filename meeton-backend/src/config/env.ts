@@ -59,6 +59,9 @@ const envSchema = z.object({
   // Weather API (RapidAPI OpenWeather)
   RAPIDAPI_WEATHER_KEY: z.string().optional(),
   RAPIDAPI_WEATHER_HOST: z.string().default('open-weather13.p.rapidapi.com'),
+  
+  // Google Maps API for geocoding
+  GOOGLE_MAPS_API_KEY: z.string().optional(),
 });
 
 export type Environment = z.infer<typeof envSchema>;
