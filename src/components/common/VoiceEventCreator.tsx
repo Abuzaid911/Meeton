@@ -124,12 +124,17 @@ const VoiceEventCreator: React.FC<VoiceEventCreatorProps> = ({
   // Cleanup recording on component unmount
   useEffect(() => {
     return () => {
-      if (recording) {
-        console.log('🧹 Cleaning up recording on unmount...');
-        recording.stopAndUnloadAsync().catch(console.error);
+      if (recording && recordingState.isRecording) {
+        console.log('🧹 Cleaning up active recording on unmount...');
+        recording.stopAndUnloadAsync().catch((error) => {
+          // Ignore "already unloaded" errors as they're harmless
+          if (!error.message?.includes('already been unloaded')) {
+            console.error('Error cleaning up recording:', error);
+          }
+        });
       }
     };
-  }, [recording]);
+  }, [recording, recordingState.isRecording]);
 
   const requestPermissions = async (): Promise<boolean> => {
     try {
