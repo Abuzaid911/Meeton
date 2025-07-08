@@ -653,15 +653,9 @@ export class APIService {
     sortOrder?: 'asc' | 'desc';
   } = {}): Promise<Event[] | null> {
     try {
-      console.log('🔍 [FRONTEND] getEvents called with options:', options);
-      
       const isAuth = this.isAuthenticated();
       const currentUser = await this.getCurrentUser();
-      console.log('🔍 [FRONTEND] Authentication state:', { 
-        isAuthenticated: isAuth, 
-        hasCurrentUser: !!currentUser,
-        userId: currentUser?.id 
-      });
+      console.log('🔍 [FRONTEND] getEvents - Auth:', isAuth, 'User ID:', currentUser?.id);
 
       const queryParams = new URLSearchParams();
       
@@ -674,21 +668,25 @@ export class APIService {
       const queryString = queryParams.toString();
       const endpoint = queryString ? `/events?${queryString}` : '/events';
 
-      console.log('🔍 [FRONTEND] Making request to:', endpoint, 'with auth:', isAuth);
-
       const response = await this.makeRequest<Event[]>(endpoint, {
         requireAuth: this.isAuthenticated(), // Use auth if user is logged in for proper privacy filtering
       });
 
       if (response.success && response.data) {
+        // Backend now returns paginated response: { events: [...], total: ..., page: ..., totalPages: ... }
+        const responseData = response.data as any;
+        const events = responseData.events || responseData; // Handle both old and new format
+        
         console.log('🔍 [FRONTEND] Events received:', {
-          total: response.data.length,
-          eventIds: response.data.map(e => e.id),
-          hostIds: response.data.map(e => e.hostId),
-          privacyLevels: response.data.map(e => e.privacyLevel),
-          userIsHostOf: response.data.filter(e => e.hostId === currentUser?.id).length
+          total: Array.isArray(events) ? events.length : 0,
+          userIsHostOf: Array.isArray(events) ? events.filter((e: any) => e.hostId === currentUser?.id).length : 0,
+          eventsByPrivacy: Array.isArray(events) ? events.reduce((acc: any, e: any) => {
+            acc[e.privacyLevel] = (acc[e.privacyLevel] || 0) + 1;
+            return acc;
+          }, {}) : {}
         });
-        return response.data;
+        
+        return Array.isArray(events) ? events : [];
       }
       
       console.log('🔍 [FRONTEND] No events received or request failed');

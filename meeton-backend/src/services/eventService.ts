@@ -329,8 +329,7 @@ class EventService {
     page: number;
     totalPages: number;
   }> {
-    console.log('🔍 [BACKEND SERVICE] getEvents called with userId:', userId);
-    console.log('🔍 [BACKEND SERVICE] Options:', options);
+    console.log('🔍 [SERVICE] getEvents - userId:', userId);
 
     const {
       page = 1,
@@ -354,8 +353,6 @@ class EventService {
       cancelledAt: null,
     };
 
-    console.log('🔍 [BACKEND SERVICE] Initial where clause:', where);
-
     if (category) {
       where.category = category;
     }
@@ -365,7 +362,7 @@ class EventService {
     } else if (userId) {
       // If user is provided, filter by privacy level
       // For authenticated users, show PUBLIC, FRIENDS_ONLY (if friends), and PRIVATE (if invited)
-      console.log('🔍 [BACKEND SERVICE] User provided, building privacy filter for userId:', userId);
+      console.log('🔍 [SERVICE] Building privacy filter for user:', userId);
       
       where.OR = [
         { privacyLevel: PrivacyLevel.PUBLIC },
@@ -404,11 +401,8 @@ class EventService {
           }
         }
       ];
-      
-      console.log('🔍 [BACKEND SERVICE] Privacy filter OR conditions:', where.OR);
     } else {
       // For unauthenticated users, only show public events
-      console.log('🔍 [BACKEND SERVICE] No user provided, showing only public events');
       where.privacyLevel = PrivacyLevel.PUBLIC;
     }
 
@@ -430,16 +424,13 @@ class EventService {
           searchClause
         ];
         delete where.OR;
-        console.log('🔍 [BACKEND SERVICE] Combined privacy + search, final where.AND:', where.AND);
       } else {
         where.OR = searchClause.OR;
-        console.log('🔍 [BACKEND SERVICE] Search only, where.OR:', where.OR);
       }
     }
 
     if (hostId) {
       where.hostId = hostId;
-      console.log('🔍 [BACKEND SERVICE] Added hostId filter:', hostId);
     }
 
     if (attendeeId) {
@@ -449,7 +440,6 @@ class EventService {
           rsvp: { in: [RSVP.YES, RSVP.MAYBE] },
         },
       };
-      console.log('🔍 [BACKEND SERVICE] Added attendeeId filter:', attendeeId);
     }
 
     if (startDate || endDate) {
@@ -460,10 +450,9 @@ class EventService {
       if (endDate) {
         where.date.lte = endDate;
       }
-      console.log('🔍 [BACKEND SERVICE] Added date filter:', where.date);
     }
 
-    console.log('🔍 [BACKEND SERVICE] Final WHERE clause:', JSON.stringify(where, null, 2));
+    console.log('🔍 [SERVICE] WHERE clause has hostId filter:', userId ? `{ hostId: ${userId} }` : 'No user filter');
 
     // Build order by clause
     let orderBy: any;
@@ -524,16 +513,12 @@ class EventService {
       prisma.event.count({ where }),
     ]);
 
-    console.log('🔍 [BACKEND SERVICE] Query results:', {
-      totalFound: total,
-      eventsReturned: events.length,
-      eventDetails: events.map(e => ({
-        id: e.id,
-        name: e.name,
-        hostId: e.hostId,
-        privacyLevel: e.privacyLevel,
-        isUserHost: e.hostId === userId
-      }))
+    const userHostedEvents = events.filter(e => e.hostId === userId);
+    console.log('🔍 [SERVICE] Results:', {
+      total,
+      returned: events.length,
+      userHosted: userHostedEvents.length,
+      userHostedEventIds: userHostedEvents.map(e => e.id)
     });
 
     const totalPages = Math.ceil(total / limit);
