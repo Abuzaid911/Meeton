@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { weatherService } from '../services/weatherService';
+import WeatherService from '../services/weatherService';
 import { ValidationError, NotFoundError } from '../utils/errors';
 
 /**
@@ -26,7 +26,7 @@ export class WeatherController {
         throw new ValidationError('Invalid latitude or longitude');
       }
 
-      const weather = await weatherService.getCurrentWeather(latitude, longitude);
+      const weather = await WeatherService.getCurrentWeather(latitude, longitude);
 
       if (!weather) {
         throw new NotFoundError('Weather data not available');
@@ -60,7 +60,7 @@ export class WeatherController {
         throw new ValidationError('Invalid latitude or longitude');
       }
 
-      const weather = await weatherService.getWeatherForecast(latitude, longitude);
+      const weather = await WeatherService.getWeatherForecast(latitude, longitude);
 
       if (!weather) {
         throw new NotFoundError('Weather forecast not available');
@@ -87,7 +87,7 @@ export class WeatherController {
         throw new ValidationError('Event ID is required');
       }
 
-      const weather = await weatherService.getEventWeather(eventId);
+      const weather = await WeatherService.getEventWeather(eventId);
 
       if (!weather) {
         throw new NotFoundError('Weather data not available for this event');
@@ -109,7 +109,7 @@ export class WeatherController {
   async refreshAllWeather(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       // TODO: Add admin authentication when roles are implemented
-      await weatherService.refreshAllEventWeather();
+      await WeatherService.refreshAllEventWeather();
 
       res.status(200).json({
         success: true,
@@ -139,7 +139,7 @@ export class WeatherController {
         throw new ValidationError('Invalid latitude or longitude');
       }
 
-      const alerts = await weatherService.getWeatherAlerts(latitude, longitude);
+      const alerts = await WeatherService.getWeatherAlerts(latitude, longitude);
 
       res.status(200).json({
         success: true,

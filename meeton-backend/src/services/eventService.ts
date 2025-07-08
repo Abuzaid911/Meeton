@@ -7,7 +7,7 @@ import {
   ConflictError 
 } from '../utils/errors';
 import { locationService } from './locationService';
-import { weatherService } from './weatherService';
+import WeatherService from './weatherService';
 import { cacheService, CachedEvent } from './cacheService';
 
 /**
@@ -177,7 +177,7 @@ class EventService {
 
       // Fetch weather data asynchronously (don't wait for completion)
       if (lat && lng) {
-        weatherService.getEventWeather(event.id).catch(error => {
+        WeatherService.getEventWeather(event.id).catch((error: any) => {
           console.error(`Failed to fetch weather for event ${event.id}:`, error);
         });
       }
@@ -611,7 +611,7 @@ class EventService {
 
     // Refresh weather data if location or date changed
     if ((data.location || data.date) && updatedEvent.lat && updatedEvent.lng) {
-      weatherService.getEventWeather(eventId).catch(error => {
+      WeatherService.getEventWeather(eventId).catch((error: any) => {
         console.error(`Failed to refresh weather for event ${eventId}:`, error);
       });
     }

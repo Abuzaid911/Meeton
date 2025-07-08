@@ -5,7 +5,7 @@ import { getEnv } from '../config/env';
 /**
  * Weather Service
  * Handles weather data fetching and integration for events
- * Now using RapidAPI OpenWeather13 for enhanced reliability
+ * Using Google Weather API (launched 2025) - part of Google Maps Platform
  */
 
 interface WeatherData {
@@ -49,20 +49,25 @@ interface LocationCoordinates {
 
 export class WeatherService {
   private prisma: PrismaClient;
-  private rapidApiKey: string;
-  private rapidApiHost: string;
+  private googleMapsApiKey: string;
   private baseUrl: string;
 
   constructor() {
     this.prisma = DatabaseManager.getInstance();
     const env = getEnv();
-    this.rapidApiKey = env.RAPIDAPI_WEATHER_KEY || '4f47665b2amshfa0f492676c70b7p19315bjsn4548b04ddc1b';
-    this.rapidApiHost = env.RAPIDAPI_WEATHER_HOST;
-    this.baseUrl = `https://${this.rapidApiHost}`;
+    // Use Google Maps API key for Weather API (same key works for all Google Maps Platform services)
+    this.googleMapsApiKey = env.GOOGLE_MAPS_API_KEY || '';
+    this.baseUrl = 'https://weather.googleapis.com/v1';
     
-    console.log('🌤️ Weather Service initialized with RapidAPI');
-    console.log(`🔑 API Key: ${this.rapidApiKey ? '***configured***' : 'missing'}`);
-    console.log(`🌐 Host: ${this.rapidApiHost}`);
+    console.log('🌤️ Weather Service initialized with Google Weather API');
+    console.log(`🔑 Google Maps API Key: ${this.googleMapsApiKey ? '***configured***' : 'missing'}`);
+    
+    if (!this.googleMapsApiKey) {
+      console.warn('⚠️ Google Maps API key not configured. Please set GOOGLE_MAPS_API_KEY');
+      console.warn('   1. Go to Google Cloud Console');
+      console.warn('   2. Enable "Weather API" in APIs & Services');
+      console.warn('   3. Use your existing Google Maps API key');
+    }
   }
 
   /**
@@ -70,29 +75,36 @@ export class WeatherService {
    */
   async getCurrentWeather(lat: number, lng: number): Promise<WeatherData | null> {
     try {
-      if (!this.rapidApiKey) {
-        console.error('🌤️ RapidAPI Weather key not configured for current weather');
-        throw new Error('Weather API key not configured');
+      if (!this.googleMapsApiKey) {
+        console.error('🌤️ Google Maps API key not configured for current weather');
+        throw new Error('Google Maps API key not configured');
       }
 
-      const url = `${this.baseUrl}/city/fivedaysforcast`;
-      const response = await fetch(`${url}?latitude=${lat}&longitude=${lng}&lang=EN`, {
-        method: 'GET',
-        headers: {
-          'x-rapidapi-host': this.rapidApiHost,
-          'x-rapidapi-key': this.rapidApiKey
-        }
+      const url = `${this.baseUrl}/currentConditions:lookup`;
+      const params = new URLSearchParams({
+        key: this.googleMapsApiKey,
+        'location.latitude': lat.toString(),
+        'location.longitude': lng.toString(),
       });
+
+      console.log(`🌤️ Fetching current weather: ${url}?${params}`);
+      
+      const response = await fetch(`${url}?${params}`);
       
       if (!response.ok) {
-        throw new Error(`RapidAPI Weather error: ${response.status}`);
+        throw new Error(`OpenWeather API error: ${response.status} - ${response.statusText}`);
       }
 
       const data = await response.json();
-      return this.parseRapidApiWeatherData(data);
+      console.log(`🌤️ Received current weather data:`, { 
+        temp: (data as any).main?.temp, 
+        condition: (data as any).weather?.[0]?.main 
+      });
+      
+      return this.parseGoogleCurrentWeatherData(data);
     } catch (error) {
       console.error('🌤️ Error fetching current weather:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -101,29 +113,37 @@ export class WeatherService {
    */
   async getWeatherForecast(lat: number, lng: number): Promise<WeatherData | null> {
     try {
-      if (!this.rapidApiKey) {
-        console.error('🌤️ RapidAPI Weather key not configured for weather forecast');
-        throw new Error('Weather API key not configured');
+      if (!this.googleMapsApiKey) {
+        console.error('🌤️ Google Maps API key not configured for weather forecast');
+        throw new Error('Google Maps API key not configured');
       }
 
-      const url = `${this.baseUrl}/city/fivedaysforcast`;
-      const response = await fetch(`${url}?latitude=${lat}&longitude=${lng}&lang=EN`, {
-        method: 'GET',
-        headers: {
-          'x-rapidapi-host': this.rapidApiHost,
-          'x-rapidapi-key': this.rapidApiKey
-        }
+      const url = `${this.baseUrl}/forecast/days:lookup`;
+      const params = new URLSearchParams({
+        key: this.googleMapsApiKey,
+        'location.latitude': lat.toString(),
+        'location.longitude': lng.toString(),
+        'forecastDays': '10'
       });
+
+      console.log(`🌤️ Fetching weather forecast: ${url}?${params}`);
+      
+      const response = await fetch(`${url}?${params}`);
       
       if (!response.ok) {
-        throw new Error(`RapidAPI Weather error: ${response.status}`);
+        throw new Error(`OpenWeather API error: ${response.status} - ${response.statusText}`);
       }
 
       const data = await response.json();
-      return this.parseRapidApiWeatherData(data);
+      console.log(`🌤️ Received forecast data:`, { 
+        count: (data as any).list?.length, 
+        firstTemp: (data as any).list?.[0]?.main?.temp 
+      });
+      
+      return this.parseForecastWeatherData(data);
     } catch (error) {
       console.error('🌤️ Error fetching weather forecast:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -195,7 +215,7 @@ export class WeatherService {
         }
       });
 
-      console.log(`Weather updated for event ${eventId}`);
+      console.log(`🌤️ Weather updated for event ${eventId}: ${weatherData.temperature}°C, ${weatherData.condition}`);
     } catch (error) {
       console.error(`Error updating weather for event ${eventId}:`, error);
     }
@@ -213,18 +233,23 @@ export class WeatherService {
           lat: { not: null },
           lng: { not: null },
         },
-        select: { id: true }
+        select: { id: true, name: true, lat: true, lng: true }
       });
 
-      console.log(`Refreshing weather for ${upcomingEvents.length} events`);
+      console.log(`🌤️ Refreshing weather for ${upcomingEvents.length} events`);
 
       for (const event of upcomingEvents) {
-        await this.getEventWeather(event.id);
-        // Add delay to respect API rate limits
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+          console.log(`🌤️ Refreshing weather for: ${event.name} (${event.lat}, ${event.lng})`);
+          await this.getEventWeather(event.id);
+          // Add delay to respect API rate limits (60 calls/min for free tier)
+          await new Promise(resolve => setTimeout(resolve, 1100));
+        } catch (error) {
+          console.error(`Error refreshing weather for event ${event.id}:`, error);
+        }
       }
 
-      console.log('Weather refresh completed for all events');
+      console.log('🌤️ Weather refresh completed for all events');
     } catch (error) {
       console.error('Error refreshing weather for all events:', error);
     }
@@ -235,13 +260,12 @@ export class WeatherService {
    */
   async getWeatherAlerts(lat: number, lng: number): Promise<WeatherAlert[]> {
     try {
-      if (!this.rapidApiKey) {
+      if (!this.googleMapsApiKey) {
         return [];
       }
 
-      // Note: Weather alerts may not be available in this RapidAPI endpoint
-      // This is a placeholder for future implementation
-      console.log('Weather alerts not available in current RapidAPI endpoint');
+      // Weather alerts not yet available in Google Weather API
+      console.log('🌤️ Weather alerts not yet available in Google Weather API');
       return [];
     } catch (error) {
       console.error('Error fetching weather alerts:', error);
@@ -250,122 +274,69 @@ export class WeatherService {
   }
 
   /**
-   * Parse RapidAPI weather response
+   * Parse Google Weather API current conditions response
    */
-  private parseRapidApiWeatherData(data: any): WeatherData {
+  private parseGoogleCurrentWeatherData(data: any): WeatherData {
     try {
-      // RapidAPI returns different structure, adapt accordingly
-      const current = data.list?.[0] || data;
-      const weather = current.weather?.[0] || {};
-      const main = current.main || {};
-      const wind = current.wind || {};
-      const sys = current.sys || {};
+      const temperature = data.temperature?.degrees || 20;
+      const weatherCondition = data.weatherCondition || {};
+      const wind = data.wind || {};
+
+      // Convert Google's weather condition to our format
+      const condition = this.mapGoogleWeatherCondition(weatherCondition.type);
+      const description = weatherCondition.description?.text || 'Clear';
 
       return {
-        temperature: Math.round(main.temp || 20),
-        condition: weather.main || 'Clear',
-        description: weather.description || 'clear sky',
-        humidity: main.humidity || 50,
-        windSpeed: wind.speed || 0,
-        windDirection: wind.deg || 0,
-        visibility: current.visibility ? current.visibility / 1000 : 10,
-        uvIndex: 0, // May not be available in this endpoint
-        pressure: main.pressure || 1013,
-        feelsLike: Math.round(main.feels_like || main.temp || 20),
-        icon: weather.icon || '01d',
-        sunrise: sys.sunrise ? new Date(sys.sunrise * 1000).toISOString() : undefined,
-        sunset: sys.sunset ? new Date(sys.sunset * 1000).toISOString() : undefined,
-        hourlyForecast: this.parseRapidApiHourlyForecast(data),
+        temperature: Math.round(temperature),
+        condition,
+        description,
+        humidity: data.relativeHumidity || 50,
+        windSpeed: wind.speed?.value || 0,
+        windDirection: wind.direction?.degrees || 0,
+        visibility: data.visibility?.distance || 10,
+        uvIndex: data.uvIndex || 0,
+        pressure: data.airPressure?.meanSeaLevelMillibars || 1013,
+        feelsLike: Math.round(data.feelsLikeTemperature?.degrees || temperature),
+        icon: this.getWeatherIconFromGoogle(weatherCondition.iconBaseUri),
       };
     } catch (error) {
-      console.error('🌤️ Error parsing RapidAPI weather data:', error);
-      // Return basic fallback data instead of mock data
-      return {
-        temperature: 20,
-        condition: 'Unknown',
-        description: 'Weather data unavailable',
-        humidity: 50,
-        windSpeed: 0,
-        windDirection: 0,
-        visibility: 10,
-        uvIndex: 0,
-        pressure: 1013,
-        feelsLike: 20,
-        icon: '01d',
-      };
+      console.error('🌤️ Error parsing Google current weather data:', error);
+      throw new Error('Failed to parse Google weather data');
     }
-  }
-
-  /**
-   * Parse hourly forecast from RapidAPI response
-   */
-  private parseRapidApiHourlyForecast(data: any): HourlyForecast[] {
-    try {
-      if (!data.list || !Array.isArray(data.list)) {
-        return [];
-      }
-
-      return data.list.slice(0, 24).map((item: any) => ({
-        time: new Date((item.dt || Date.now() / 1000) * 1000).toISOString(),
-        temperature: Math.round(item.main?.temp || 20),
-        condition: item.weather?.[0]?.main || 'Clear',
-        icon: item.weather?.[0]?.icon || '01d',
-        precipitationChance: Math.round((item.pop || 0) * 100),
-      }));
-    } catch (error) {
-      console.error('Error parsing hourly forecast:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Parse current weather API response (legacy method for reference)
-   */
-  private parseCurrentWeatherData(data: any): WeatherData {
-    return {
-      temperature: Math.round(data.main.temp),
-      condition: data.weather[0].main,
-      description: data.weather[0].description,
-      humidity: data.main.humidity,
-      windSpeed: data.wind?.speed || 0,
-      windDirection: data.wind?.deg || 0,
-      visibility: data.visibility ? data.visibility / 1000 : 10, // Convert to km
-      uvIndex: 0, // Not available in current weather API
-      pressure: data.main.pressure,
-      feelsLike: Math.round(data.main.feels_like),
-      icon: data.weather[0].icon,
-      sunrise: data.sys.sunrise ? new Date(data.sys.sunrise * 1000).toISOString() : undefined,
-      sunset: data.sys.sunset ? new Date(data.sys.sunset * 1000).toISOString() : undefined,
-    };
   }
 
   /**
    * Parse forecast weather API response
    */
   private parseForecastWeatherData(data: any): WeatherData {
-    const current = data.list[0];
-    const hourlyForecast: HourlyForecast[] = data.list.slice(0, 24).map((item: any) => ({
-      time: new Date(item.dt * 1000).toISOString(),
-      temperature: Math.round(item.main.temp),
-      condition: item.weather[0].main,
-      icon: item.weather[0].icon,
-      precipitationChance: (item.pop || 0) * 100,
-    }));
+    try {
+      const current = data.list[0];
+      const hourlyForecast: HourlyForecast[] = data.list.slice(0, 24).map((item: any) => ({
+        time: new Date(item.dt * 1000).toISOString(),
+        temperature: Math.round(item.main.temp),
+        condition: item.weather[0].main,
+        icon: item.weather[0].icon,
+        precipitationChance: Math.round((item.pop || 0) * 100),
+      }));
 
-    return {
-      temperature: Math.round(current.main.temp),
-      condition: current.weather[0].main,
-      description: current.weather[0].description,
-      humidity: current.main.humidity,
-      windSpeed: current.wind?.speed || 0,
-      windDirection: current.wind?.deg || 0,
-      visibility: current.visibility ? current.visibility / 1000 : 10,
-      uvIndex: 0,
-      pressure: current.main.pressure,
-      feelsLike: Math.round(current.main.feels_like),
-      icon: current.weather[0].icon,
-      hourlyForecast,
-    };
+      return {
+        temperature: Math.round(current.main.temp),
+        condition: current.weather[0].main,
+        description: current.weather[0].description,
+        humidity: current.main.humidity,
+        windSpeed: current.wind?.speed || 0,
+        windDirection: current.wind?.deg || 0,
+        visibility: current.visibility ? current.visibility / 1000 : 10,
+        uvIndex: 0,
+        pressure: current.main.pressure,
+        feelsLike: Math.round(current.main.feels_like),
+        icon: current.weather[0].icon,
+        hourlyForecast,
+      };
+    } catch (error) {
+      console.error('🌤️ Error parsing forecast weather data:', error);
+      throw new Error('Failed to parse forecast data');
+    }
   }
 
   /**
@@ -479,56 +450,61 @@ export class WeatherService {
   }
 
   /**
-   * Generate mock weather data when API is not available
+   * Map Google Weather API condition types to our standard conditions
    */
-  private getMockWeatherData(lat: number, lng: number): WeatherData {
-    const now = new Date();
-    const month = now.getMonth();
-    const baseTemp = this.getSeasonalBaseTemperature(lat, month);
-    
-    const conditions = ['Clear', 'Clouds', 'Rain', 'Drizzle'];
-    const condition = conditions[Math.floor(Math.random() * conditions.length)];
-
-    return {
-      temperature: Math.round(baseTemp + (Math.random() - 0.5) * 10),
-      condition,
-      description: this.getConditionDescription(condition),
-      humidity: Math.round(30 + Math.random() * 60),
-      windSpeed: Math.round(Math.random() * 25),
-      windDirection: Math.round(Math.random() * 360),
-      visibility: Math.round(5 + Math.random() * 15),
-      uvIndex: Math.floor(Math.random() * 11),
-      pressure: Math.round(980 + Math.random() * 60),
-      feelsLike: Math.round(baseTemp + (Math.random() - 0.5) * 8),
-      icon: this.getWeatherIcon(condition),
-      hourlyForecast: this.generateMockHourlyForecast(),
+  private mapGoogleWeatherCondition(googleType: string): string {
+    const mapping: { [key: string]: string } = {
+      'CLEAR': 'Clear',
+      'MOSTLY_CLEAR': 'Clear',
+      'PARTLY_CLOUDY': 'Clouds',
+      'MOSTLY_CLOUDY': 'Clouds',
+      'OVERCAST': 'Clouds',
+      'LIGHT_RAIN': 'Rain',
+      'MODERATE_RAIN': 'Rain',
+      'HEAVY_RAIN': 'Rain',
+      'LIGHT_SNOW': 'Snow',
+      'MODERATE_SNOW': 'Snow',
+      'HEAVY_SNOW': 'Snow',
+      'THUNDERSTORM': 'Thunderstorm',
+      'FOG': 'Mist',
+      'MIST': 'Mist',
     };
+
+    return mapping[googleType] || 'Clear';
   }
 
   /**
-   * Generate mock hourly forecast
+   * Extract weather icon from Google's iconBaseUri
    */
-  private generateMockHourlyForecast(): HourlyForecast[] {
-    const forecast: HourlyForecast[] = [];
-    const baseTemp = 20;
+  private getWeatherIconFromGoogle(iconBaseUri?: string): string {
+    if (!iconBaseUri) return '01d';
+    
+    // Google provides icons like: https://maps.gstatic.com/weather/v1/mostly_cloudy_night
+    // Extract the condition and map to standard icon codes
+    const iconName = iconBaseUri.split('/').pop() || '';
+    
+    const iconMapping: { [key: string]: string } = {
+      'clear_day': '01d',
+      'clear_night': '01n',
+      'mostly_clear_day': '02d',
+      'mostly_clear_night': '02n',
+      'partly_cloudy_day': '03d',
+      'partly_cloudy_night': '03n',
+      'mostly_cloudy_day': '04d',
+      'mostly_cloudy_night': '04n',
+      'overcast': '04d',
+      'light_rain': '10d',
+      'moderate_rain': '10d',
+      'heavy_rain': '10d',
+      'light_snow': '13d',
+      'moderate_snow': '13d',
+      'heavy_snow': '13d',
+      'thunderstorm': '11d',
+      'fog': '50d',
+      'mist': '50d',
+    };
 
-    for (let i = 0; i < 24; i++) {
-      const time = new Date();
-      time.setHours(time.getHours() + i);
-
-      const conditions = ['Clear', 'Clouds', 'Rain'];
-      const condition = conditions[Math.floor(Math.random() * conditions.length)];
-
-      forecast.push({
-        time: time.toISOString(),
-        temperature: Math.round(baseTemp + (Math.random() - 0.5) * 15),
-        condition,
-        icon: this.getWeatherIcon(condition),
-        precipitationChance: Math.round(Math.random() * 100),
-      });
-    }
-
-    return forecast;
+    return iconMapping[iconName] || '01d';
   }
 
   /**
@@ -538,28 +514,21 @@ export class WeatherService {
     try {
       const event = await this.prisma.event.findUnique({
         where: { id: eventId },
-        select: {
-          weather: true,
-          updatedAt: true,
-          date: true,
-        }
+        select: { weather: true, updatedAt: true }
       });
 
       if (!event || !event.weather) {
         return true; // No weather data, needs refresh
       }
 
-      const lastUpdate = new Date(event.updatedAt);
-      const now = new Date();
-      const hoursSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
-
-      // Refresh if data is older than 6 hours
-      return hoursSinceUpdate > 6;
+      // Refresh if data is older than 30 minutes
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      return event.updatedAt < thirtyMinutesAgo;
     } catch (error) {
       console.error('Error checking weather refresh status:', error);
-      return true;
+      return true; // Default to refresh on error
     }
   }
 }
 
-export const weatherService = new WeatherService(); 
+export default new WeatherService(); 

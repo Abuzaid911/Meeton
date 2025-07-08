@@ -56,11 +56,9 @@ const envSchema = z.object({
   APPLE_KEY_ID: z.string().optional(),
   APPLE_PRIVATE_KEY: z.string().optional(),
   
-  // Weather API (RapidAPI OpenWeather)
-  RAPIDAPI_WEATHER_KEY: z.string().optional(),
-  RAPIDAPI_WEATHER_HOST: z.string().default('open-weather13.p.rapidapi.com'),
-  
-  // Google Maps API for geocoding
+  // Google Maps API (used for geocoding, places, and weather)
+  // Get API key at: https://console.cloud.google.com/apis/credentials
+  // Enable: Maps JavaScript API, Geocoding API, Places API, Weather API
   GOOGLE_MAPS_API_KEY: z.string().optional(),
 });
 
